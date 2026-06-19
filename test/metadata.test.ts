@@ -38,11 +38,11 @@ describe('userscript metadata', () => {
     expect(metaValue(meta, 'grant')).toBe('none');
   });
 
-  it('targets Amazon product pages via @match rules', () => {
-    const matches = meta.get('match') ?? [];
-    expect(matches.length).toBe(5);
-    for (const rule of matches) {
-      expect(rule).toContain('amazon.com');
+  it('targets Amazon product pages via TLD-agnostic @include rules', () => {
+    const includes = meta.get('include') ?? [];
+    expect(includes.length).toBe(5);
+    for (const rule of includes) {
+      expect(rule).toContain('amazon');
     }
   });
 });

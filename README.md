@@ -4,6 +4,8 @@ A userscript that adds a search box to Amazon's **Add to List** wishlist popover
 so you can filter long wishlist menus by typing. Optionally keeps a
 "Previously selected" group of your most-used lists at the top.
 
+![Amazon Wishlist Search demo](assets/amazon-wishlist-search-demo-480.gif)
+
 This is the TypeScript source. Builds compile `src/` into a single
 `*.user.js` file that Tampermonkey / Violentmonkey / Greasemonkey installs.
 

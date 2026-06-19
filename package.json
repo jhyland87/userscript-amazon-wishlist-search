@@ -1,6 +1,6 @@
 {
   "name": "userscript-amazon-wishlist-search",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Adds a search input to the Amazon 'Add to List' wishlist popover",
   "author": "Justin Hyland",
   "license": "MIT",
