@@ -1,0 +1,68 @@
+name: Release
+
+# Publish a GitHub Release whenever a vX.Y.Z tag is pushed. The release's
+# attached asset is what `@updateURL`/`@downloadURL` resolve to, so userscript
+# managers (Tampermonkey/Violentmonkey) auto-update users to it.
+#
+#   pnpm version patch   # bumps package.json + creates a vX.Y.Z tag
+#   git push --follow-tags
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      ASSET: dist/amazon-wishlist-search.user.js
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Build + run the (non-release) test suite before publishing.
+      - run: pnpm test
+
+      - name: Verify tag matches userscript @version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          META=$(grep -m1 '^// @version' "$ASSET" | awk '{print $3}')
+          echo "tag=$TAG  userscript=@version $META"
+          if [ "$TAG" != "$META" ]; then
+            echo "::error::Tag v$TAG does not match userscript @version $META. Bump the version in vite.config.ts and package.json."
+            exit 1
+          fi
+
+      - name: Compute SHA-256
+        id: hash
+        run: echo "sha256=$(sha256sum "$ASSET" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET }}
+          generate_release_notes: true
+          body: |
+            ## Amazon Wishlist Search ${{ github.ref_name }}
+
+            Installed via a userscript manager? It will auto-update from the
+            latest-release link below — no action needed.
+
+            **Install / reinstall:**
+            https://github.com/jhyland87/userscript-amazon-wishlist-search/releases/latest/download/amazon-wishlist-search.user.js
+
+            **SHA-256** (`amazon-wishlist-search.user.js`):
+            ```
+            ${{ steps.hash.outputs.sha256 }}
+            ```

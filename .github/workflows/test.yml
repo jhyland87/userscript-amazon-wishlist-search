@@ -1,0 +1,29 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reads the pnpm version from the "packageManager" field in package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Builds the userscript (via the pretest hook) and runs the Vitest suite.
+      # The release-integrity test stays skipped here; it runs post-release.
+      - run: pnpm test
+
+      - name: Typecheck tests
+        run: pnpm exec tsc -p tsconfig.test.json --noEmit

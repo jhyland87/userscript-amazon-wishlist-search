@@ -1,0 +1,27 @@
+{
+  "name": "userscript-amazon-wishlist-search",
+  "version": "0.2.0",
+  "description": "Adds a search input to the Amazon 'Add to List' wishlist popover",
+  "author": "Justin Hyland",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@11.8.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "pretest": "pnpm build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:release": "CHECK_GITHUB_RELEASE=1 vitest run release"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-mkcert": "^2.1.0",
+    "vite-plugin-monkey": "^8.0.6",
+    "vitest": "^4.1.9"
+  }
+}
