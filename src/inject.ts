@@ -7,9 +7,11 @@ import {
 } from './dom';
 import {
   attachSelectionTracker,
-  buildFrequentSection,
+  renderFrequentSection,
 } from './frequent-section';
+import { SEARCH_ICONS } from './icons';
 import { log } from './log';
+import { isRegexEnabled, setRegexEnabled } from './regex-state';
 import { createResultCountElement } from './result-count';
 import { resetSearchInput, searchTrigger } from './search';
 import { injectStylesheet } from './styles';
@@ -37,6 +39,49 @@ const buildSearchInput = (): HTMLInputElement => {
   input.addEventListener('keydown', () => resetSearchInput(input));
   input.addEventListener('keyup', () => searchTrigger(input.value));
   return input;
+};
+
+/** Reflect the current regex-mode state on the toggle's icon and labels. */
+const applyRegexToggleState = (button: HTMLElement): void => {
+  const on = isRegexEnabled();
+  button.style.backgroundImage = `url("${on ? SEARCH_ICONS.regex : SEARCH_ICONS.text}")`;
+  const title = on
+    ? 'Regex search on — click for plain text'
+    : 'Regex search off — click to enable';
+  button.title = title;
+  button.setAttribute('aria-label', title);
+  button.setAttribute('aria-pressed', String(on));
+};
+
+/** A regex on/off toggle that lives inside the search input's right edge. */
+const buildRegexToggle = (): HTMLSpanElement => {
+  const button = document.createElement('span');
+  button.id = 'wishlist-search-regex';
+  button.setAttribute('role', 'button');
+  applyRegexToggleState(button);
+  // Keep the input focused when the toggle is clicked.
+  button.addEventListener('mousedown', (event) => event.preventDefault());
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setRegexEnabled(!isRegexEnabled());
+    applyRegexToggleState(button);
+    const input = getSearchInput();
+    if (input) {
+      searchTrigger(input.value);
+      input.focus();
+    }
+  });
+  return button;
+};
+
+/** The search input wrapped with its inline regex toggle. */
+const buildSearchField = (): HTMLDivElement => {
+  const wrap = document.createElement('div');
+  wrap.id = 'wishlist-search-wrap';
+  wrap.appendChild(buildSearchInput());
+  wrap.appendChild(buildRegexToggle());
+  return wrap;
 };
 
 /**
@@ -79,17 +124,13 @@ export const addListSearchInput = (): void => {
 
   injectStylesheet();
 
-  const input = buildSearchInput();
+  const field = buildSearchField();
+  listUl.parentNode.insertBefore(field, listUl);
 
-  // Build the frequent section first — this moves items out of the main
-  // list, so it must happen before we measure anything for alignment.
-  const frequentSection = buildFrequentSection();
-
-  listUl.parentNode.insertBefore(input, listUl);
-  if (frequentSection) listUl.parentNode.insertBefore(frequentSection, input);
-  log.debug('addListSearchInput: input inserted', {
-    frequentSection: !!frequentSection,
-  });
+  // Render the frequent group above the field. This moves items out of the
+  // main list, so it must happen before we measure anything for alignment.
+  renderFrequentSection();
+  log.debug('addListSearchInput: input inserted');
 
   // Track clicks on list items so we can build up the frequency map.
   attachSelectionTracker(popover);

@@ -48,21 +48,45 @@ jobs:
         id: hash
         run: echo "sha256=$(sha256sum "$ASSET" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
+      # Prefer the hand-written CHANGELOG.md section for this version; the
+      # auto-generated notes derive from merged PRs, so commits that land
+      # straight on main would otherwise yield just a compare link. Fall back to
+      # generated notes when the tag has no CHANGELOG section yet.
+      - name: Build release notes
+        id: notes
+        env:
+          TAG: ${{ github.ref_name }}
+          SHA256: ${{ steps.hash.outputs.sha256 }}
+        run: |
+          VERSION="${TAG#v}"
+          ASSET_URL="https://github.com/jhyland87/userscript-amazon-wishlist-search/releases/latest/download/amazon-wishlist-search.user.js"
+          if node tools/extractChangelog.js "$VERSION" changelog-section.md; then
+            HAS_NOTES=1
+          else
+            HAS_NOTES=0
+            echo "::warning::No CHANGELOG.md section for $VERSION; falling back to --generate-notes"
+          fi
+          {
+            echo "## Amazon Wishlist Search ${TAG}"
+            echo
+            if [ "$HAS_NOTES" = 1 ]; then cat changelog-section.md; echo; fi
+            echo "Installed via a userscript manager? It will auto-update from the latest-release link below — no action needed."
+            echo
+            echo "**Install / reinstall:**"
+            echo "$ASSET_URL"
+            echo
+            echo "**SHA-256** (\`amazon-wishlist-search.user.js\`):"
+            printf '```\n%s\n```\n' "$SHA256"
+          } > release-notes.md
+          if [ "$HAS_NOTES" = 1 ]; then
+            echo "generate=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "generate=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.ASSET }}
-          generate_release_notes: true
-          body: |
-            ## Amazon Wishlist Search ${{ github.ref_name }}
-
-            Installed via a userscript manager? It will auto-update from the
-            latest-release link below — no action needed.
-
-            **Install / reinstall:**
-            https://github.com/jhyland87/userscript-amazon-wishlist-search/releases/latest/download/amazon-wishlist-search.user.js
-
-            **SHA-256** (`amazon-wishlist-search.user.js`):
-            ```
-            ${{ steps.hash.outputs.sha256 }}
-            ```
+          body_path: release-notes.md
+          generate_release_notes: ${{ steps.notes.outputs.generate }}

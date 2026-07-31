@@ -41,3 +41,17 @@ export const str2regex = (searchStr: string): RegExp | null => {
     return null;
   }
 };
+
+/**
+ * Compile a raw user string as a case-insensitive RegExp (regex mode). Returns
+ * null when the string isn't a valid pattern, so callers can fall back to
+ * literal matching while the user is mid-typing an expression.
+ */
+export const compileRegex = (searchStr: string): RegExp | null => {
+  if (!searchStr) return null;
+  try {
+    return new RegExp(searchStr, 'i');
+  } catch {
+    return null;
+  }
+};

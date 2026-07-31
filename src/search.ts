@@ -6,7 +6,8 @@ import {
   getSearchInput,
 } from './dom';
 import { log } from './log';
-import { getRegexpPattern, str2regex } from './regex';
+import { compileRegex, getRegexpPattern, str2regex } from './regex';
+import { isRegexEnabled } from './regex-state';
 import {
   hideSearchResultTxt,
   updateSearchResultTxt,
@@ -25,15 +26,17 @@ export const showAllListItems = (): void => {
   hideSearchResultTxt();
 };
 
-/** Decide whether/how to build a regex from the user's input. */
+/**
+ * Decide whether/how to build a regex from the user's input, based on the
+ * regex-mode toggle. When on, the input is treated as a pattern (a `/…/flags`
+ * form is honoured, otherwise the raw text is compiled); when off, the input is
+ * matched as a case-insensitive literal.
+ */
 const resolvePattern = (searchStr: string): RegExp | null => {
-  if (CONFIG.regexSearches === 'delimiters') {
-    return getRegexpPattern(searchStr) ?? str2regex(searchStr);
+  if (isRegexEnabled()) {
+    return getRegexpPattern(searchStr) ?? compileRegex(searchStr);
   }
-  if (CONFIG.regexSearches === true || CONFIG.regexSearches === 'enable') {
-    return str2regex(searchStr);
-  }
-  return null;
+  return str2regex(searchStr);
 };
 
 /**

@@ -1,4 +1,4 @@
-import { CONFIG } from './config';
+import { CONFIG, STORAGE_KEYS } from './config';
 import { getListItems, getListItemName } from './dom';
 import { log } from './log';
 import type { FrequencyMap } from './types';
@@ -29,7 +29,7 @@ const isFrequencyMap = (value: unknown): value is FrequencyMap => {
 
 export const loadFrequencies = (): FrequencyMap => {
   try {
-    const raw = localStorage.getItem(CONFIG.storageKey);
+    const raw = localStorage.getItem(STORAGE_KEYS.frequencies);
     const parsed: unknown = raw ? JSON.parse(raw) : {};
     return isFrequencyMap(parsed) ? parsed : {};
   } catch {
@@ -39,7 +39,7 @@ export const loadFrequencies = (): FrequencyMap => {
 
 export const saveFrequencies = (map: FrequencyMap): void => {
   try {
-    localStorage.setItem(CONFIG.storageKey, JSON.stringify(map));
+    localStorage.setItem(STORAGE_KEYS.frequencies, JSON.stringify(map));
   } catch (err) {
     log.warn('failed to persist frequencies', err);
   }
@@ -52,19 +52,72 @@ export const recordSelection = (listName: string): void => {
   saveFrequencies(map);
 };
 
+/** Remove a single list's frequency entry (drops it from the group). */
+export const removeName = (listName: string): void => {
+  if (!listName) return;
+  const map = loadFrequencies();
+  if (!(listName in map)) return;
+  delete map[listName];
+  saveFrequencies(map);
+};
+
+/**
+ * Disabled-name blocklist.
+ *
+ * Names the user has opted out of the "Previously selected" group entirely.
+ * Persisted as a JSON array of names, separate from the frequency map so that
+ * clearing history doesn't lose the blocklist and vice-versa.
+ */
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === 'string');
+
+export const loadDisabled = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.frequentDisabled);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(isStringArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+};
+
+export const saveDisabled = (names: Set<string>): void => {
+  try {
+    localStorage.setItem(
+      STORAGE_KEYS.frequentDisabled,
+      JSON.stringify(Array.from(names)),
+    );
+  } catch (err) {
+    log.warn('failed to persist disabled list', err);
+  }
+};
+
+/** Block a list name so it never reappears in the "Previously selected" group. */
+export const disableName = (listName: string): void => {
+  if (!listName) return;
+  const disabled = loadDisabled();
+  if (disabled.has(listName)) return;
+  disabled.add(listName);
+  saveDisabled(disabled);
+};
+
 /**
  * Returns the top N list names by selection count, descending.
  * Only includes names that currently exist in the popover list.
  */
 export const getTopFrequentNames = (n: number): string[] => {
   const map = loadFrequencies();
+  const disabled = loadDisabled();
   const presentNames = new Set(
     getListItems()
       .map((li) => getListItemName(li))
       .filter((name): name is string => Boolean(name)),
   );
   return Object.entries(map)
-    .filter(([name, count]) => count > 0 && presentNames.has(name))
+    .filter(
+      ([name, count]) =>
+        count > 0 && presentNames.has(name) && !disabled.has(name),
+    )
     .sort((a, b) => b[1] - a[1])
     .slice(0, n)
     .map(([name]) => name);
@@ -73,5 +126,6 @@ export const getTopFrequentNames = (n: number): string[] => {
 /** Expose a global helper to clear history when frequent lists are enabled. */
 export const installClearHistoryHelper = (): void => {
   if (!CONFIG.enableFrequentLists) return;
-  window.clearWishlistHistory = () => localStorage.removeItem(CONFIG.storageKey);
+  window.clearWishlistHistory = () =>
+    localStorage.removeItem(STORAGE_KEYS.frequencies);
 };

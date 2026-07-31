@@ -1,4 +1,4 @@
-import { CONFIG } from './config';
+import { CONFIG, STORAGE_KEYS } from './config';
 
 /**
  * Runtime debug state.
@@ -10,11 +10,9 @@ import { CONFIG } from './config';
  * The value is cached in a module variable so the logger (a hot path that
  * runs on every DOM mutation) never touches localStorage per call.
  */
-const STORAGE_KEY = 'wishlist-search:debug';
-
 const readStored = (): boolean | null => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEYS.debug);
     if (raw === null) return null;
     return raw === 'true';
   } catch {
@@ -31,7 +29,7 @@ export const isDebugEnabled = (): boolean => enabled;
 export const setDebugEnabled = (value: boolean): boolean => {
   enabled = value;
   try {
-    localStorage.setItem(STORAGE_KEY, String(value));
+    localStorage.setItem(STORAGE_KEYS.debug, String(value));
   } catch {
     // Ignore storage failures (private mode, disabled storage, etc.).
   }

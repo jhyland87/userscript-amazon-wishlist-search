@@ -16,14 +16,16 @@ export interface WishlistSearchConfig {
   readonly maxSearchResults: number | false;
   /** Minimum chars before searching. */
   readonly minSearchInput: number;
-  /** Whether/how input is interpreted as a regular expression. */
+  /**
+   * Default for regex search mode. Overridden at runtime by the toggle inside
+   * the search input (`true`/`'enable'` → on, otherwise off); the choice is
+   * saved to localStorage. See `regex-state.ts`.
+   */
   readonly regexSearches: RegexSearchMode;
   /** Show a "Previously selected" group at the top of the list. */
   readonly enableFrequentLists: boolean;
   /** Number of frequent lists to show in that group. */
   readonly frequentListsCount: number;
-  /** localStorage key for the frequency map. */
-  readonly storageKey: string;
   /**
    * Default for verbose debug logging. Overridden at runtime by a value saved
    * from the console via `window.wishlistSearchDebug(true|false)`, which
@@ -51,6 +53,12 @@ declare global {
   interface Window {
     /** Exposed when `enableFrequentLists` is on; clears the frequency map. */
     clearWishlistHistory?: () => void;
+    /**
+     * Toggle the "Previously selected" feature (persists across refreshes).
+     * Pass a boolean to enable/disable; called with no argument it just
+     * returns the current state. Mirrors the popover's inline controls.
+     */
+    wishlistSearchFrequent?: (value?: boolean) => boolean;
     /**
      * Console helper (always installed). Pass a boolean to enable/disable
      * debug logging (persisted across refreshes); returns a selector/state

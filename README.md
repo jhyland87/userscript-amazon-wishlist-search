@@ -126,13 +126,16 @@ src/
   main.ts             Entry point — wires everything up
   config.ts           CONFIG values and DOM SELECTORS
   dom.ts              Live-popover DOM helpers
-  regex.ts            Regex parsing / escaping helpers
-  frequencies.ts      localStorage selection-frequency tracking
-  frequent-section.ts "Previously selected" group
+  regex.ts            Regex parsing / escaping / compiling helpers
+  regex-state.ts      Runtime on/off toggle for regex search (persisted)
+  frequencies.ts      localStorage selection-frequency + blocklist tracking
+  frequent-section.ts "Previously selected" group + its inline controls
+  frequent-state.ts   Runtime on/off toggle for the group (persisted)
+  icons.ts            Inline SVG icons for the injected UI
   result-count.ts     "N results" notice element
   search.ts           Search + debounce + highlight logic
   styles.ts           Injected stylesheet for the input
-  inject.ts           Builds and inserts the search UI
+  inject.ts           Builds and inserts the search UI (input + regex toggle)
   observer.ts         MutationObserver + ESC handling
   log.ts              Prefixed console logger
   types/index.ts      Shared interfaces and types
@@ -145,9 +148,39 @@ test/
 ## Configuration
 
 Behaviour is controlled by `CONFIG` in [`src/config.ts`](./src/config.ts):
-debounce delay, max results shown, regex mode, the frequent-lists group, and
-the localStorage key. When the frequent-lists group is enabled, a
-`window.clearWishlistHistory()` helper is exposed in the console to reset it.
+debounce delay, max results shown, regex mode, and the frequent-lists group.
+Every persisted value's `localStorage` key lives in `STORAGE_KEYS` in the same
+file. When the frequent-lists group is enabled, a `window.clearWishlistHistory()`
+helper is exposed in the console to reset it.
+
+### Managing the "Previously selected" group
+
+The group can be managed inline — the controls stay hidden until you hover:
+
+- Hover a row → an **✕** removes just that list from the group; a **trash** icon
+  also blocks it from ever reappearing there.
+- Hover the **Previously selected** label → an **✕** clears the whole group; a
+  **toggle** turns the feature off. While off, the label stays (struck through,
+  italic) with just the toggle — click it (or run `wishlistSearchFrequent(true)`)
+  to turn it back on.
+
+```js
+wishlistSearchFrequent(true)   // enable the group (persists across refreshes)
+wishlistSearchFrequent(false)  // disable it
+wishlistSearchFrequent()       // return the current state, unchanged
+```
+
+### Regex search
+
+A small icon inside the right edge of the search box toggles regex mode
+(persists across refreshes):
+
+- **`Txt`** (default) — your text is matched literally (case-insensitive).
+- **`(.*)`** — your text is treated as a regular expression; a `/pattern/flags`
+  form is honoured too, and an incomplete pattern falls back to a literal match
+  while you type.
+
+`CONFIG.regexSearches` sets the default mode.
 
 ### Debug logging
 

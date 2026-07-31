@@ -2,16 +2,37 @@ import type { WishlistSearchConfig } from './types';
 
 /** User-tunable behaviour. */
 export const CONFIG: WishlistSearchConfig = {
+  // Debounce (ms) before a search runs after a keystroke.
   searchDelayMs: 500,
+  // Delay (ms) before focusing the input (waits for the popover to show).
   searchFocusDelayMs: 200,
+  // Max results shown at once; set to `false` to remove the cap.
   maxSearchResults: 10,
+  // Minimum characters typed before a search runs.
   minSearchInput: 0,
+  // Default regex mode; the in-input toggle overrides it (`true`/`'enable'` → on).
   regexSearches: 'delimiters',
+  // Show the "Previously selected" group by default; the label toggle overrides it.
   enableFrequentLists: true,
+  // Number of lists shown in the "Previously selected" group.
   frequentListsCount: 5,
-  storageKey: 'wishlist-search:frequent-lists',
+  // Default verbose debug logging; `wishlistSearchDebug()` overrides it at runtime.
   debug: false,
 };
+
+/** Centralized localStorage keys, so every persisted value has one home. */
+export const STORAGE_KEYS = {
+  /** Map of wishlist name -> selection count. */
+  frequencies: 'wishlist-search:frequent-lists',
+  /** Names the user blocked from the "Previously selected" group. */
+  frequentDisabled: 'wishlist-search:frequent-disabled',
+  /** Runtime on/off flag for the "Previously selected" feature. */
+  frequentEnabled: 'wishlist-search:frequent-enabled',
+  /** Runtime on/off flag for regex search mode. */
+  regexEnabled: 'wishlist-search:regex-enabled',
+  /** Runtime debug-logging flag. */
+  debug: 'wishlist-search:debug',
+} as const;
 
 /**
  * Selectors.
@@ -41,6 +62,8 @@ export const SELECTORS = {
   addToListBtn: '#add-to-wishlist-button',
   /** Injected: the search input. */
   searchInput: '#wishlist-search',
+  /** Injected: the wrapper around the search input (holds the regex toggle). */
+  searchWrap: '#wishlist-search-wrap',
   /** Injected: the result-count notice. */
   resultCount: '#wishlist-search-result-count',
 } as const;

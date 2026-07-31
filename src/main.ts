@@ -1,5 +1,6 @@
 import { installDebugControls } from './debug';
 import { installClearHistoryHelper } from './frequencies';
+import { installFrequentHelper } from './frequent-section';
 import { log } from './log';
 import { startObserver } from './observer';
 
@@ -13,6 +14,7 @@ const main = (): void => {
   installDebugControls();
   log.debug('loaded userscript');
   installClearHistoryHelper();
+  installFrequentHelper();
   startObserver();
 };
 

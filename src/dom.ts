@@ -23,6 +23,9 @@ export const getListItems = (): HTMLElement[] => {
 export const getSearchInput = (): HTMLInputElement | null =>
   getPopover()?.querySelector<HTMLInputElement>(SELECTORS.searchInput) ?? null;
 
+export const getSearchWrap = (): HTMLElement | null =>
+  getPopover()?.querySelector<HTMLElement>(SELECTORS.searchWrap) ?? null;
+
 export const getResultCount = (): HTMLElement | null =>
   getPopover()?.querySelector<HTMLElement>(SELECTORS.resultCount) ?? null;
 
