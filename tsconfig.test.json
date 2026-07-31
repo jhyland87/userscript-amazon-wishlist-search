@@ -1,7 +1,10 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vitest/globals"],
+    // Tests import the plain-JS release tool (tools/extractChangelog.js); allow
+    // JS so tsc resolves it and reads its JSDoc types instead of erroring.
+    "allowJs": true
   },
-  "include": ["test", "vitest.config.ts"]
+  "include": ["test", "tools", "vitest.config.ts"]
 }
