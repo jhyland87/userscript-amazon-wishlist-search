@@ -12,6 +12,8 @@ someone using the script, one line per change, grouped under **Added** /
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-16
+
 ### Added
 
 - **Add to several lists without reopening the popover.** Picking a list now adds
