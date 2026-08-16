@@ -1,3 +1,5 @@
+import { FREQ_ICONS, STATUS_ICONS } from './icons';
+
 /**
  * Hover/focus styling needs real CSS (inline styles can't express pseudo-
  * classes), so the stylesheet is injected once on first use.
@@ -59,19 +61,41 @@ export const injectStylesheet = (): void => {
     #wishlist-search-regex:hover {
       opacity: 1;
     }
+    /* The group's label doubles as its expand/collapse control. */
+    #wishlist-search-frequent-label[data-expandable="true"] {
+      cursor: pointer;
+      user-select: none;
+    }
+    .wishlist-freq-chevron {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin-right: 4px;
+      vertical-align: -1px;
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 10px;
+      background-image: url("${FREQ_ICONS.chevron}");
+      transition: transform 0.12s ease-in-out;
+    }
+    #wishlist-search-frequent-label[data-collapsed="false"] .wishlist-freq-chevron {
+      transform: rotate(90deg);
+    }
     /* Frequent-list controls: hidden until the row/label is hovered. */
     #wishlist-search-frequent li,
     #wishlist-search-frequent-label {
       position: relative;
     }
+    /* Pinned to the top rather than vertically centred: a row is two lines
+       (name over privacy), so centring drags the icons down toward the
+       second line instead of sitting beside the name. */
     .wishlist-freq-ctrls {
       position: absolute;
-      top: 0;
+      top: 2px;
       right: 6px;
-      bottom: 0;
       display: flex;
       gap: 2px;
-      align-items: center;
+      align-items: flex-start;
       opacity: 0;
       transition: opacity 0.1s ease-in-out;
       pointer-events: none;
@@ -102,6 +126,62 @@ export const injectStylesheet = (): void => {
     }
     .wishlist-freq-ctrl:hover {
       opacity: 1;
+    }
+    /* Rows in the main list need a positioning context for the status badge —
+       the block above only gives one to rows in the frequent group. */
+    #atwl-dd-ul li.a-dropdown-item {
+      position: relative;
+    }
+    /* Per-row add status. Unlike the frequent controls this is persistent
+       state, not a hover affordance, so it's always visible. */
+    .wishlist-add-status {
+      position: absolute;
+      /* 3px, not 2px, so this 18px badge centres against the 20px controls
+         beside it — see .wishlist-freq-ctrls above. */
+      top: 3px;
+      right: 6px;
+      width: 18px;
+      height: 18px;
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 14px;
+      pointer-events: none;
+    }
+    .wishlist-add-status[data-state="pending"] {
+      box-sizing: border-box;
+      border: 2px solid #d5d9d9;
+      border-top-color: #898d8d;
+      border-radius: 50%;
+      animation: wishlist-add-spin 0.7s linear infinite;
+    }
+    .wishlist-add-status[data-state="added"] {
+      background-image: url("${STATUS_ICONS.added}");
+    }
+    /* The undo affordance appears only when we actually have the item ID the
+       remove endpoint needs — otherwise the check is inert. */
+    .wishlist-add-status[data-state="added"][data-undo="true"] {
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    .wishlist-add-status[data-state="added"][data-undo="true"]:hover {
+      background-image: url("${STATUS_ICONS.undo}");
+    }
+    .wishlist-add-status[data-state="failed"] {
+      background-image: url("${STATUS_ICONS.failed}");
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    @keyframes wishlist-add-spin {
+      to { transform: rotate(360deg); }
+    }
+    /* Keep long list names clear of the badge, and shift the frequent-group
+       controls left so the two never overlap. The sibling selector works
+       because the badge is always inserted before the controls. */
+    li.a-dropdown-item:has(.wishlist-add-status) .a-list-item {
+      padding-right: 26px;
+    }
+    .wishlist-add-status ~ .wishlist-freq-ctrls {
+      right: 30px;
     }
   `;
   document.head.appendChild(style);

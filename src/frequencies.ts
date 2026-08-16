@@ -52,6 +52,22 @@ export const recordSelection = (listName: string): void => {
   saveFrequencies(map);
 };
 
+/**
+ * Undo one `recordSelection`, dropping the entry once it reaches zero.
+ *
+ * Used when an add is taken back, so a list the user immediately undid doesn't
+ * keep climbing the "Previously selected" group.
+ */
+export const unrecordSelection = (listName: string): void => {
+  if (!listName) return;
+  const map = loadFrequencies();
+  const count = map[listName];
+  if (count === undefined) return;
+  if (count <= 1) delete map[listName];
+  else map[listName] = count - 1;
+  saveFrequencies(map);
+};
+
 /** Remove a single list's frequency entry (drops it from the group). */
 export const removeName = (listName: string): void => {
   if (!listName) return;

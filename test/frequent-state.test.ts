@@ -10,6 +10,7 @@ const localStorageStub = {
 };
 
 const STORAGE_KEY = 'wishlist-search:frequent-enabled';
+const COLLAPSED_KEY = 'wishlist-search:frequent-collapsed';
 
 beforeEach(() => {
   store.clear();
@@ -44,5 +45,37 @@ describe('frequent-state', () => {
     setFrequentEnabled(true);
     expect(isFrequentEnabled()).toBe(true);
     expect(store.get(STORAGE_KEY)).toBe('true');
+  });
+
+  it('starts collapsed, so a long group cannot hide the search box', async () => {
+    const { isFrequentCollapsed } = await import('../src/frequent-state');
+    const { CONFIG } = await import('../src/config');
+    expect(CONFIG.collapseFrequentLists).toBe(true);
+    expect(isFrequentCollapsed()).toBe(true);
+  });
+
+  it('a stored collapsed value supersedes the default', async () => {
+    store.set(COLLAPSED_KEY, 'false');
+    const { isFrequentCollapsed } = await import('../src/frequent-state');
+    expect(isFrequentCollapsed()).toBe(false);
+  });
+
+  it('setFrequentCollapsed updates the cached value and persists it', async () => {
+    const { isFrequentCollapsed, setFrequentCollapsed } = await import(
+      '../src/frequent-state'
+    );
+    setFrequentCollapsed(false);
+    expect(isFrequentCollapsed()).toBe(false);
+    expect(store.get(COLLAPSED_KEY)).toBe('false');
+  });
+
+  it('the two flags are stored independently', async () => {
+    const { setFrequentCollapsed, isFrequentEnabled } = await import(
+      '../src/frequent-state'
+    );
+    setFrequentCollapsed(false);
+    // Collapsing must not read as "the feature was turned off".
+    expect(isFrequentEnabled()).toBe(true);
+    expect(store.get(STORAGE_KEY)).toBeUndefined();
   });
 });

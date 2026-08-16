@@ -12,6 +12,35 @@ someone using the script, one line per change, grouped under **Added** /
 
 ## [Unreleased]
 
+### Added
+
+- **Add to several lists without reopening the popover.** Picking a list now adds
+  the item in place — the row gets a green **✓** and the popover stays open, so
+  you can go straight on to the next list instead of dismissing Amazon's
+  confirmation modal and starting over.
+- **Undo an add** by hovering its ✓ and clicking the **↩** that replaces it. (If
+  the page doesn't expose the ID the removal needs, the ✓ simply stays put with
+  no undo arrow.)
+- A **⚠** on the row if an add fails, with the reason on hover. Clicking it hands
+  the add back to Amazon's own flow, so it always has a way through.
+- `wishlistSearchMultiAdd(true|false)` console helper to turn adding-in-place off
+  and get Amazon's stock behaviour back (persists across refreshes); call it with
+  no argument to read the current state.
+
+### Changed
+
+- The **Previously selected** group is now **collapsible, and starts collapsed** —
+  with several remembered lists it used to push the search box out of view before
+  you could type. Click the label to expand it; the choice sticks. Searching
+  expands it automatically so matches inside it still show.
+- The group's controls and the new status icons now sit at the **top** right of a
+  row, beside the list name, rather than being centred against the second line.
+- Amazon's "active" highlight is cleared when the popover opens, so no list looks
+  pre-selected before you've picked one.
+- The **Previously selected** group now counts a list only once the add is
+  actually confirmed, rather than the moment you click — and undoing an add takes
+  its count back off.
+
 ## [0.3.0] - 2026-07-31
 
 ### Added

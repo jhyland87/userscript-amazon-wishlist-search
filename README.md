@@ -1,8 +1,10 @@
 # Amazon Wishlist Search
 
 A userscript that adds a search box to Amazon's **Add to List** wishlist popover,
-so you can filter long wishlist menus by typing. Optionally keeps a
-"Previously selected" group of your most-used lists at the top.
+so you can filter long wishlist menus by typing. Clicking a list adds the item
+in place — the popover stays open, so you can add to several lists in one go —
+and it optionally keeps a "Previously selected" group of your most-used lists at
+the top.
 
 ![Amazon Wishlist Search demo](assets/amazon-wishlist-search-demo-480.gif)
 
@@ -85,6 +87,14 @@ pnpm test
 Uses [Vitest](https://vitest.dev/). `pnpm test` builds first (via the `pretest`
 hook), then runs the suite in [`test/`](./test):
 
+- `wishlist-api.test.ts` — the wire protocol: request bodies built byte-for-byte
+  against captured requests, and every response case (success, signed out, token
+  rejected, HTTP error, unrecognized) classified from real recorded bodies in
+  `test/fixtures/`. Includes a guard that classification keys off element IDs
+  rather than English copy, since the script runs on every Amazon TLD.
+- `wishlist-client.test.ts` — that requests go to origin-relative paths (never a
+  hardcoded `amazon.com`), carry the right headers, rotate the CSRF token from
+  each response, retry a rejected token exactly once, and run one at a time.
 - `metadata.test.ts` — asserts on the built `dist/*.user.js`: that `@version`
   matches `package.json`, that `@updateURL`/`@downloadURL` point at the latest
   release asset (and not the raw `main` branch), `@grant none`, and the
@@ -124,13 +134,19 @@ CI.
 ```
 src/
   main.ts             Entry point — wires everything up
-  config.ts           CONFIG values and DOM SELECTORS
+  config.ts           CONFIG values, DOM SELECTORS, endpoint paths
   dom.ts              Live-popover DOM helpers
   regex.ts            Regex parsing / escaping / compiling helpers
   regex-state.ts      Runtime on/off toggle for regex search (persisted)
   frequencies.ts      localStorage selection-frequency + blocklist tracking
   frequent-section.ts "Previously selected" group + its inline controls
   frequent-state.ts   Runtime on/off toggle for the group (persisted)
+  add-interceptor.ts  Captures row clicks so items are added in place
+  wishlist-api.ts     Request bodies and response classification (no DOM)
+  wishlist-client.ts  fetch, request queue, CSRF token rotation, timeouts
+  page-params.ts      Reads ASIN / token / session values off the product page
+  row-status.ts       The per-row ✓ / ⚠ / spinner badge
+  multi-add-state.ts  Runtime on/off toggle for adding in place (persisted)
   icons.ts            Inline SVG icons for the injected UI
   result-count.ts     "N results" notice element
   search.ts           Search + debounce + highlight logic
@@ -140,8 +156,14 @@ src/
   log.ts              Prefixed console logger
   types/index.ts      Shared interfaces and types
 test/
-  metadata.test.ts    Asserts built userscript metadata / auto-update wiring
-  release.test.ts     Release SHA-256 integrity check (opt-in)
+  wishlist-api.test.ts    Request bodies + response classification
+  wishlist-client.test.ts fetch wiring, token rotation, retry, queueing
+  *-state.test.ts         Persisted feature toggles
+  regex.test.ts           Pattern parsing
+  frequencies.test.ts     Selection-frequency bookkeeping
+  metadata.test.ts        Asserts built userscript metadata / auto-update wiring
+  release.test.ts         Release SHA-256 integrity check (opt-in)
+  fixtures/               Real Amazon responses, recorded verbatim
 .github/workflows/    CI (test) and release automation
 ```
 
@@ -153,7 +175,44 @@ Every persisted value's `localStorage` key lives in `STORAGE_KEYS` in the same
 file. When the frequent-lists group is enabled, a `window.clearWishlistHistory()`
 helper is exposed in the console to reset it.
 
+### Adding to several lists at once
+
+Normally, picking a list hands you off to Amazon: a confirmation modal opens and
+the popover closes, so adding one item to three lists means opening the popover
+three times. Instead, the click is intercepted and the item is added directly:
+
+- The row shows a spinner, then a green **✓** — and the popover stays open, so
+  you can immediately pick another list.
+- Hover a ✓ to turn it into an **↩**; clicking that takes the item back off that
+  list. (The undo needs a line-item ID from the page. If the page doesn't expose
+  one, the ✓ stays put with no undo arrow rather than offering a button that
+  would fail — `wishlistSearchDebug()` reports this as `itemIdFound: false`.)
+- If a request fails, the row shows a **⚠** instead. Clicking it hands the add
+  back to Amazon's own flow, so there's always a way through. Hover it for the
+  reason.
+- Only confirmed adds count toward the "Previously selected" group, and an undo
+  takes the count back off.
+
+If Amazon ever changes the endpoint, turn the whole thing off and you get the
+stock behaviour back:
+
+```js
+wishlistSearchMultiAdd(false)  // back to Amazon's confirmation modal
+wishlistSearchMultiAdd(true)   // add in place (default)
+wishlistSearchMultiAdd()       // return the current state, unchanged
+```
+
+The setting persists across refreshes and takes effect on the next click — no
+need to reopen the popover.
+
 ### Managing the "Previously selected" group
+
+The group starts **collapsed** — just the label with a **▸** caret — so a long
+list of remembered wishlists can't push the search box out of view. Click the
+label to expand it; that choice persists across refreshes. Typing in the search
+box expands the group automatically for as long as the search is running, so
+matches inside it are never hidden from you. `CONFIG.collapseFrequentLists` sets
+the default.
 
 The group can be managed inline — the controls stay hidden until you hover:
 

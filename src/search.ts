@@ -5,6 +5,7 @@ import {
   getListItemNameSpan,
   getSearchInput,
 } from './dom';
+import { setFrequentSearchOverride } from './frequent-section';
 import { log } from './log';
 import { compileRegex, getRegexpPattern, str2regex } from './regex';
 import { isRegexEnabled } from './regex-state';
@@ -15,6 +16,8 @@ import {
 
 /** Show every list item again and clear any search highlighting. */
 export const showAllListItems = (): void => {
+  // Nothing is being searched for any more, so let the group re-collapse.
+  setFrequentSearchOverride(false);
   for (const item of getListItems()) {
     item.style.display = 'block';
     // Restore any highlighted innerHTML on the name span.
@@ -59,6 +62,10 @@ const matchName = (
 export const searchList = (searchStr: string): void => {
   const input = getSearchInput();
   if (!input) return;
+
+  // The frequent group holds the original <li> nodes, so it has to be visible
+  // for matches inside it to show at all.
+  setFrequentSearchOverride(true);
 
   updateSearchResultTxt('');
 

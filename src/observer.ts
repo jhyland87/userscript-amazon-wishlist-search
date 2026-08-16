@@ -1,6 +1,6 @@
 import { INJECTED_ATTR } from './config';
 import { getPopover, getSearchInput, isListOpen } from './dom';
-import { addListSearchInput, searchFocus } from './inject';
+import { addListSearchInput, clearActiveListItem, searchFocus } from './inject';
 import { log } from './log';
 import { searchTrigger } from './search';
 
@@ -22,11 +22,17 @@ const traceState = (state: string): void => {
   log.debug(`state: ${state}`);
 };
 
+// The observer fires continuously while the popover is open, so track the
+// closed -> open edge: work that belongs to "the popover just opened" runs once
+// per open rather than on every mutation.
+let wasOpen = false;
+
 const tryInject = (): void => {
   // Only inject after the popover is visible. Injecting earlier (while
   // aria-hidden="true") raced with Amazon's measurement pass and caused the
   // popover to be repositioned after open.
   if (!isListOpen()) {
+    wasOpen = false;
     traceState(getPopover() ? 'popover present but not open (aria-hidden)' : 'no popover yet');
     return;
   }
@@ -34,6 +40,11 @@ const tryInject = (): void => {
   if (!popover) {
     traceState('isListOpen() true but popover query returned null');
     return;
+  }
+
+  if (!wasOpen) {
+    wasOpen = true;
+    clearActiveListItem();
   }
 
   if (popover.getAttribute(INJECTED_ATTR) !== 'true') {

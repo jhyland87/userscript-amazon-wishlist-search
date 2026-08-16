@@ -13,7 +13,12 @@ import {
   removeName,
   saveFrequencies,
 } from './frequencies';
-import { isFrequentEnabled, setFrequentEnabled } from './frequent-state';
+import {
+  isFrequentCollapsed,
+  isFrequentEnabled,
+  setFrequentCollapsed,
+  setFrequentEnabled,
+} from './frequent-state';
 import { FREQ_ICONS } from './icons';
 
 /**
@@ -34,6 +39,46 @@ import { FREQ_ICONS } from './icons';
 const FREQ_SECTION_ID = 'wishlist-search-frequent';
 const FREQ_LABEL_ID = 'wishlist-search-frequent-label';
 const FREQ_DIVIDER_ID = 'wishlist-search-frequent-divider';
+
+/**
+ * Set while a search is running. A collapsed group still holds the original
+ * `<li>` nodes, so leaving it hidden would make those lists unfindable — the
+ * search would silently miss exactly the lists the user reaches for most.
+ */
+let searchOverride = false;
+
+/** Apply the current collapsed state to the rendered group. */
+const applyCollapseState = (): void => {
+  const popover = getPopover();
+  if (!popover) return;
+  const section = popover.querySelector(`#${FREQ_SECTION_ID}`);
+  const label = popover.querySelector(`#${FREQ_LABEL_ID}`);
+  const collapsed = isFrequentCollapsed() && !searchOverride;
+
+  if (section instanceof HTMLElement) {
+    section.style.display = collapsed ? 'none' : '';
+  }
+  if (label instanceof HTMLElement) {
+    label.dataset.collapsed = String(collapsed);
+    label.setAttribute('aria-expanded', String(!collapsed));
+  }
+};
+
+/**
+ * Force the group open for the duration of a search, then hand control back to
+ * the persisted collapsed state.
+ *
+ * @param active - `true` while a search term is present.
+ * @returns Nothing.
+ * @example
+ * setFrequentSearchOverride(true); // group is visible so matches can show
+ * @source src/frequent-section.ts
+ */
+export const setFrequentSearchOverride = (active: boolean): void => {
+  if (searchOverride === active) return;
+  searchOverride = active;
+  applyCollapseState();
+};
 
 export const removeFrequentSection = (): void => {
   const popover = getPopover();
@@ -89,6 +134,21 @@ const buildLabel = (enabled: boolean): HTMLDivElement => {
     margin: '0',
   });
   label.textContent = 'Previously selected';
+
+  if (enabled) {
+    // The whole label is the disclosure control, so the hit target is the full
+    // width rather than a 10px caret.
+    const chevron = document.createElement('span');
+    chevron.className = 'wishlist-freq-chevron';
+    label.prepend(chevron);
+    label.dataset.expandable = 'true';
+    label.setAttribute('role', 'button');
+    label.title = 'Show or hide previously selected lists';
+    label.addEventListener('click', () => {
+      setFrequentCollapsed(!isFrequentCollapsed());
+      applyCollapseState();
+    });
+  }
 
   const toggle = enabled
     ? buildControl(FREQ_ICONS.toggleOn, 'Turn off Previously selected', () => {
@@ -214,7 +274,9 @@ export const insertFrequentSection = (node: Node): void => {
  */
 export const renderFrequentSection = (): void => {
   const node = isFrequentEnabled() ? buildFrequentSection() : buildLabel(false);
-  if (node) insertFrequentSection(node);
+  if (!node) return;
+  insertFrequentSection(node);
+  applyCollapseState();
 };
 
 /**
@@ -230,6 +292,8 @@ const restoreFrequentItems = (): void => {
   for (const li of Array.from(
     section.querySelectorAll<HTMLElement>(':scope > li'),
   )) {
+    // Only the group's own controls are stripped — an add-status badge is
+    // deliberately left in place so a ✓ survives the group being rebuilt.
     li.querySelector(':scope > .wishlist-freq-ctrls')?.remove();
     listUl.appendChild(li);
   }
@@ -261,13 +325,19 @@ export const installFrequentHelper = (): void => {
 /**
  * Wire up a click handler on the popover that records the selected list
  * name. Uses event delegation so it survives Amazon re-rendering.
+ *
+ * This is the bubble-phase path, used when the item is added by Amazon itself.
+ * When `add-interceptor.ts` claims a click in the capture phase this handler
+ * never runs, and the interceptor records the selection instead — only once the
+ * add is actually confirmed. The two are mutually exclusive, so there's no risk
+ * of double-counting and no guard needed here.
  */
 export const attachSelectionTracker = (popover: HTMLElement): void => {
   if (popover.dataset.selectionTracked === 'true') return;
   popover.addEventListener('click', (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    const link = target.closest('a.a-dropdown-link[id^="atwl-link-to-list-"]');
+    const link = target.closest(SELECTORS.listItemLink);
     if (!link) return;
     const li = link.closest<HTMLElement>(SELECTORS.listItem);
     const name = li ? getListItemName(li) : null;

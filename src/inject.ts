@@ -1,3 +1,4 @@
+import { attachAddInterceptor } from './add-interceptor';
 import { CONFIG, INJECTED_ATTR, SELECTORS } from './config';
 import {
   getListUl,
@@ -99,6 +100,22 @@ const alignToButton = (popover: HTMLElement): void => {
   if (popover.style.left !== targetLeft) popover.style.left = targetLeft;
 };
 
+/**
+ * Drop Amazon's "active" highlight from whichever row is carrying it.
+ *
+ * Amazon marks a row active as the popover opens, which looks like that list is
+ * already selected. Cleared once per open (see `observer.ts`) rather than on
+ * every mutation, so keyboard navigation can still highlight rows afterwards.
+ */
+export const clearActiveListItem = (): void => {
+  const popover = getPopover();
+  if (!popover) return;
+  const active = popover.querySelectorAll(SELECTORS.activeItem);
+  if (active.length === 0) return;
+  for (const element of active) element.classList.remove('a-active');
+  log.debug(`cleared active highlight from ${active.length} row(s)`);
+};
+
 export const addListSearchInput = (): void => {
   const popover = getPopover();
   if (!popover) {
@@ -134,6 +151,11 @@ export const addListSearchInput = (): void => {
 
   // Track clicks on list items so we can build up the frequency map.
   attachSelectionTracker(popover);
+
+  // Add in place instead of letting Amazon's modal take over. Registered in the
+  // capture phase, so when it claims a click the tracker above never sees it —
+  // the interceptor records the selection itself once the add is confirmed.
+  attachAddInterceptor(popover);
 
   alignToButton(popover);
   requestAnimationFrame(() => {

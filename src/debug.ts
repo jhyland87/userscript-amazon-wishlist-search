@@ -9,6 +9,16 @@ import {
   isListOpen,
 } from './dom';
 import { log } from './log';
+import { isMultiAddEnabled } from './multi-add-state';
+import {
+  getAsin,
+  getCsrfToken,
+  getListItemId,
+  getMerchantId,
+  getSessionId,
+  getVendorId,
+} from './page-params';
+import { getCachedCsrfToken } from './wishlist-client';
 
 /**
  * Snapshot of every selector the injection pipeline depends on. Probes both
@@ -34,6 +44,17 @@ export const debugSnapshot = (): Record<string, unknown> => {
     popoverInnerCountGlobal: document.querySelectorAll(SELECTORS.popoverInner).length,
     listUlCountGlobal: document.querySelectorAll(SELECTORS.listUl).length,
     listItemCountGlobal: document.querySelectorAll(SELECTORS.listItem).length,
+    // Adding in place depends on several page-level values, any of which can
+    // vanish when Amazon reshuffles the product page. `itemIdFound: false` is
+    // specifically why a row would show a ✓ with no undo arrow.
+    multiAddEnabled: isMultiAddEnabled(),
+    csrfTokenFound: !!getCsrfToken(),
+    asinFound: !!getAsin(),
+    vendorId: getVendorId(),
+    sessionIdFound: !!getSessionId(),
+    merchantIdFound: !!getMerchantId(),
+    itemIdFound: !!getListItemId(),
+    cachedCsrfToken: !!getCachedCsrfToken(),
   };
 };
 
