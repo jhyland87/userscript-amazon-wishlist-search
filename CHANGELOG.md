@@ -12,6 +12,22 @@ someone using the script, one line per change, grouped under **Added** /
 
 ## [Unreleased]
 
+### Fixed
+
+- Picking a list no longer opens a large empty gap beneath that row in the
+  popover.
+- The popover now opens with the search box at the top rather than scrolled to
+  the bottom edge, so an expanded "Previously selected" group sits one scroll up
+  instead of pushing the box out of view.
+- The ✕ / toggle / ✓ icons on the right of the popover are inset a little
+  further, so an overlay scrollbar no longer paints over them while scrolling.
+
+### Changed
+
+- Expanding the "Previously selected" group now lasts only for that popover
+  open. Every open starts collapsed again, instead of an expanded group being
+  remembered and filling the popover from then on.
+
 ## [0.4.0] - 2026-08-16
 
 ### Added

@@ -1,3 +1,4 @@
+import { SELECTORS } from './config';
 import { FREQ_ICONS, STATUS_ICONS } from './icons';
 
 /**
@@ -88,11 +89,17 @@ export const injectStylesheet = (): void => {
     }
     /* Pinned to the top rather than vertically centred: a row is two lines
        (name over privacy), so centring drags the icons down toward the
-       second line instead of sitting beside the name. */
+       second line instead of sitting beside the name.
+
+       The 12px right inset (rather than a snug 6px) keeps the icons clear of an
+       overlay scrollbar, which paints over the rightmost ~10px of the popover
+       while scrolling. The scrollbar-gutter property is no help: it only
+       reserves space for classic scrollbars, and those take real layout width
+       and never overlap. */
     .wishlist-freq-ctrls {
       position: absolute;
       top: 2px;
-      right: 6px;
+      right: 12px;
       display: flex;
       gap: 2px;
       align-items: flex-start;
@@ -139,7 +146,7 @@ export const injectStylesheet = (): void => {
       /* 3px, not 2px, so this 18px badge centres against the 20px controls
          beside it — see .wishlist-freq-ctrls above. */
       top: 3px;
-      right: 6px;
+      right: 12px;
       width: 18px;
       height: 18px;
       background-repeat: no-repeat;
@@ -174,14 +181,20 @@ export const injectStylesheet = (): void => {
     @keyframes wishlist-add-spin {
       to { transform: rotate(360deg); }
     }
-    /* Keep long list names clear of the badge, and shift the frequent-group
-       controls left so the two never overlap. The sibling selector works
-       because the badge is always inserted before the controls. */
-    li.a-dropdown-item:has(.wishlist-add-status) .a-list-item {
-      padding-right: 26px;
+    /* Keep long list names clear of the badge. Scoped to the name element and
+       sized rather than padded: padding on Amazon's generic row wrappers lands
+       on a trailing inline fragment, which wraps to a line of its own and opens
+       a gap under the row. */
+    li.a-dropdown-item:has(.wishlist-add-status) ${SELECTORS.listItemName} {
+      display: inline-block;
+      box-sizing: border-box;
+      max-width: calc(100% - 32px);
     }
+    /* Shift the frequent-group controls left so the two never overlap. The
+       sibling selector works because the badge is always inserted before the
+       controls. */
     .wishlist-add-status ~ .wishlist-freq-ctrls {
-      right: 30px;
+      right: 36px;
     }
   `;
   document.head.appendChild(style);

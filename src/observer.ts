@@ -1,5 +1,6 @@
 import { INJECTED_ATTR } from './config';
 import { getPopover, getSearchInput, isListOpen } from './dom';
+import { resetFrequentCollapse } from './frequent-section';
 import { addListSearchInput, clearActiveListItem, searchFocus } from './inject';
 import { log } from './log';
 import { searchTrigger } from './search';
@@ -45,6 +46,8 @@ const tryInject = (): void => {
   if (!wasOpen) {
     wasOpen = true;
     clearActiveListItem();
+    // Every open starts with the group collapsed, so it can't fill the popover.
+    resetFrequentCollapse();
   }
 
   if (popover.getAttribute(INJECTED_ATTR) !== 'true') {

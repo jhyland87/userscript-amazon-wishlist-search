@@ -4,6 +4,7 @@ import {
   getListUl,
   getPopover,
   getSearchInput,
+  getSearchWrap,
   isListOpen,
 } from './dom';
 import {
@@ -18,12 +19,51 @@ import { resetSearchInput, searchTrigger } from './search';
 import { injectStylesheet } from './styles';
 
 /**
+ * The nearest ancestor that actually scrolls, searched no further than the
+ * popover itself — repositioning the field must never scroll the page.
+ */
+const findScroller = (start: HTMLElement): HTMLElement | null => {
+  const popover = getPopover();
+  let node = start.parentElement;
+  while (node) {
+    const { overflowY } = getComputedStyle(node);
+    const scrolls = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
+    if (scrolls && node.scrollHeight > node.clientHeight) return node;
+    if (node === popover) return null;
+    node = node.parentElement;
+  }
+  return null;
+};
+
+/**
+ * Park the search field at the top of whatever container scrolls it.
+ *
+ * With the "Previously selected" group expanded above it, the field can start
+ * below the fold — and the browser's own scroll-into-view brings it only just
+ * into view, i.e. pinned to the bottom edge. Putting it at the top instead
+ * leaves the group one scroll up for anyone who wants it.
+ */
+const scrollSearchToTop = (): void => {
+  const wrap = getSearchWrap();
+  if (!wrap) return;
+  const scroller = findScroller(wrap);
+  if (!scroller) return;
+  const offset =
+    wrap.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+  scroller.scrollTop += offset;
+};
+
+/**
  * Focus the input — but only if the popover is actually visible, otherwise
  * the focus either silently fails or lands invisibly on a hidden input.
  */
 export const searchFocus = (): void => {
   setTimeout(() => {
-    if (isListOpen()) getSearchInput()?.focus();
+    if (!isListOpen()) return;
+    // Focus without the default scroll-into-view, then place the field
+    // ourselves — see `scrollSearchToTop`.
+    getSearchInput()?.focus({ preventScroll: true });
+    scrollSearchToTop();
   }, CONFIG.searchFocusDelayMs);
 };
 

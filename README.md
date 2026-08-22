@@ -209,10 +209,10 @@ need to reopen the popover.
 
 The group starts **collapsed** — just the label with a **▸** caret — so a long
 list of remembered wishlists can't push the search box out of view. Click the
-label to expand it; that choice persists across refreshes. Typing in the search
-box expands the group automatically for as long as the search is running, so
-matches inside it are never hidden from you. `CONFIG.collapseFrequentLists` sets
-the default.
+label to expand it; that lasts until you close the popover, and the next open
+starts collapsed again. Typing in the search box expands the group automatically
+for as long as the search is running, so matches inside it are never hidden from
+you. `CONFIG.collapseFrequentLists` sets the state every open starts from.
 
 The group can be managed inline — the controls stay hidden until you hover:
 

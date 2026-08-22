@@ -48,8 +48,6 @@ export const STORAGE_KEYS = {
   frequentDisabled: 'wishlist-search:frequent-disabled',
   /** Runtime on/off flag for the "Previously selected" feature. */
   frequentEnabled: 'wishlist-search:frequent-enabled',
-  /** Whether the "Previously selected" group is collapsed. */
-  frequentCollapsed: 'wishlist-search:frequent-collapsed',
   /** Runtime on/off flag for regex search mode. */
   regexEnabled: 'wishlist-search:regex-enabled',
   /** Runtime debug-logging flag. */

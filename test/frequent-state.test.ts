@@ -10,7 +10,6 @@ const localStorageStub = {
 };
 
 const STORAGE_KEY = 'wishlist-search:frequent-enabled';
-const COLLAPSED_KEY = 'wishlist-search:frequent-collapsed';
 
 beforeEach(() => {
   store.clear();
@@ -54,19 +53,22 @@ describe('frequent-state', () => {
     expect(isFrequentCollapsed()).toBe(true);
   });
 
-  it('a stored collapsed value supersedes the default', async () => {
-    store.set(COLLAPSED_KEY, 'false');
-    const { isFrequentCollapsed } = await import('../src/frequent-state');
-    expect(isFrequentCollapsed()).toBe(false);
-  });
-
-  it('setFrequentCollapsed updates the cached value and persists it', async () => {
+  it('setFrequentCollapsed updates the cached value without persisting it', async () => {
     const { isFrequentCollapsed, setFrequentCollapsed } = await import(
       '../src/frequent-state'
     );
     setFrequentCollapsed(false);
     expect(isFrequentCollapsed()).toBe(false);
-    expect(store.get(COLLAPSED_KEY)).toBe('false');
+    // Collapse is per-open, so nothing about it reaches storage.
+    expect(store.size).toBe(0);
+  });
+
+  it('resetFrequentCollapsed restores the default, so each open starts collapsed', async () => {
+    const { isFrequentCollapsed, resetFrequentCollapsed, setFrequentCollapsed } =
+      await import('../src/frequent-state');
+    setFrequentCollapsed(false);
+    expect(resetFrequentCollapsed()).toBe(true);
+    expect(isFrequentCollapsed()).toBe(true);
   });
 
   it('the two flags are stored independently', async () => {

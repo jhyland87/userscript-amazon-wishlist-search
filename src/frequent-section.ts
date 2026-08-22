@@ -16,6 +16,7 @@ import {
 import {
   isFrequentCollapsed,
   isFrequentEnabled,
+  resetFrequentCollapsed,
   setFrequentCollapsed,
   setFrequentEnabled,
 } from './frequent-state';
@@ -77,6 +78,20 @@ const applyCollapseState = (): void => {
 export const setFrequentSearchOverride = (active: boolean): void => {
   if (searchOverride === active) return;
   searchOverride = active;
+  applyCollapseState();
+};
+
+/**
+ * Collapse the group back to its label, discarding any expansion from an
+ * earlier open. Safe to call before the group has been rendered.
+ *
+ * @returns Nothing.
+ * @example
+ * resetFrequentCollapse(); // the next render starts collapsed
+ * @source src/frequent-section.ts
+ */
+export const resetFrequentCollapse = (): void => {
+  resetFrequentCollapsed();
   applyCollapseState();
 };
 
