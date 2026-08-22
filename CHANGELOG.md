@@ -12,6 +12,8 @@ someone using the script, one line per change, grouped under **Added** /
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-08-21
+
 ### Fixed
 
 - Picking a list no longer opens a large empty gap beneath that row in the
