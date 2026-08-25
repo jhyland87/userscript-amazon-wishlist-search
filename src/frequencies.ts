@@ -1,6 +1,7 @@
 import { CONFIG, STORAGE_KEYS } from './config';
 import { getListItems, getListItemName } from './dom';
 import { log } from './log';
+import { normalizeName } from './name-match';
 import type { FrequencyMap } from './types';
 
 /**
@@ -27,11 +28,25 @@ const isFrequencyMap = (value: unknown): value is FrequencyMap => {
   );
 };
 
+/**
+ * Names recorded before list names were whitespace-normalized still carry the
+ * newline runs Amazon's markup left in them, and would no longer match any row
+ * in the popover. Folding them on read keeps those counts alive.
+ */
+const normalizeKeys = (map: FrequencyMap): FrequencyMap => {
+  const folded: FrequencyMap = {};
+  for (const [name, count] of Object.entries(map)) {
+    const key = normalizeName(name);
+    folded[key] = (folded[key] ?? 0) + count;
+  }
+  return folded;
+};
+
 export const loadFrequencies = (): FrequencyMap => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.frequencies);
     const parsed: unknown = raw ? JSON.parse(raw) : {};
-    return isFrequencyMap(parsed) ? parsed : {};
+    return isFrequencyMap(parsed) ? normalizeKeys(parsed) : {};
   } catch {
     return {};
   }
@@ -91,7 +106,7 @@ export const loadDisabled = (): Set<string> => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.frequentDisabled);
     const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return new Set(isStringArray(parsed) ? parsed : []);
+    return new Set(isStringArray(parsed) ? parsed.map(normalizeName) : []);
   } catch {
     return new Set();
   }

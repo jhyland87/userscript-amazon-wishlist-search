@@ -15,7 +15,7 @@ import { SEARCH_ICONS } from './icons';
 import { log } from './log';
 import { isRegexEnabled, setRegexEnabled } from './regex-state';
 import { createResultCountElement } from './result-count';
-import { resetSearchInput, searchTrigger } from './search';
+import { resetSearchInput, restoreActiveSearch, searchTrigger } from './search';
 import { injectStylesheet } from './styles';
 
 /**
@@ -206,5 +206,8 @@ export const addListSearchInput = (): void => {
   popover.setAttribute(INJECTED_ATTR, 'true');
 
   createResultCountElement();
+  // A re-injection mid-search (Amazon rebuilt the popover's contents) gets the
+  // term put back, so the box doesn't go blank over a filtered list.
+  restoreActiveSearch();
   searchFocus();
 };

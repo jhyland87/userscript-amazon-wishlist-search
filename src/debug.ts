@@ -18,6 +18,7 @@ import {
   getSessionId,
   getVendorId,
 } from './page-params';
+import { getSearchDebugState } from './search';
 import { getCachedCsrfToken } from './wishlist-client';
 
 /**
@@ -38,6 +39,8 @@ export const debugSnapshot = (): Record<string, unknown> => {
     listUlFound: !!getListUl(),
     listItemCount: getListItems().length,
     searchInputPresent: !!getSearchInput(),
+    // What the running search (if any) last did — see `search.ts`.
+    search: getSearchDebugState(),
     addToListBtnFound: !!document.querySelector(SELECTORS.addToListBtn),
     // Raw, document-wide selector counts (independent of the :has scope).
     popoverCountGlobal: document.querySelectorAll(SELECTORS.popover).length,

@@ -6,7 +6,7 @@ in place â€” the popover stays open, so you can add to several lists in one go â
 and it optionally keeps a "Previously selected" group of your most-used lists at
 the top.
 
-![Amazon Wishlist Search demo](assets/amazon-wishlist-search-demo-480.gif)
+![Amazon Wishlist Search demo](assets/amazon-wishlist-search-demo-480.Aug-25-2026.gif)
 
 This is the TypeScript source. Builds compile `src/` into a single
 `*.user.js` file that Tampermonkey / Violentmonkey / Greasemonkey installs.
@@ -149,6 +149,7 @@ src/
   multi-add-state.ts  Runtime on/off toggle for adding in place (persisted)
   icons.ts            Inline SVG icons for the injected UI
   result-count.ts     "N results" notice element
+  name-match.ts       List-name normalization + match locating (no DOM)
   search.ts           Search + debounce + highlight logic
   styles.ts           Injected stylesheet for the input
   inject.ts           Builds and inserts the search UI (input + regex toggle)
@@ -160,6 +161,7 @@ test/
   wishlist-client.test.ts fetch wiring, token rotation, retry, queueing
   *-state.test.ts         Persisted feature toggles
   regex.test.ts           Pattern parsing
+  name-match.test.ts      Name normalization + match offsets
   frequencies.test.ts     Selection-frequency bookkeeping
   metadata.test.ts        Asserts built userscript metadata / auto-update wiring
   release.test.ts         Release SHA-256 integrity check (opt-in)

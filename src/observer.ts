@@ -3,7 +3,7 @@ import { getPopover, getSearchInput, isListOpen } from './dom';
 import { resetFrequentCollapse } from './frequent-section';
 import { addListSearchInput, clearActiveListItem, searchFocus } from './inject';
 import { log } from './log';
-import { searchTrigger } from './search';
+import { refilterListItems, resetSearchState, searchTrigger } from './search';
 
 /**
  * Persistent observer.
@@ -48,7 +48,15 @@ const tryInject = (): void => {
     clearActiveListItem();
     // Every open starts with the group collapsed, so it can't fill the popover.
     resetFrequentCollapse();
+    // ...and with no search running, so the last term isn't re-applied to a
+    // freshly rendered list.
+    resetSearchState();
   }
+
+  // Amazon keeps paging more lists into the open dropdown; those rows arrive
+  // unfiltered, so a running search has to be extended to them. No-op unless
+  // a search is running and something new turned up.
+  refilterListItems();
 
   if (popover.getAttribute(INJECTED_ATTR) !== 'true') {
     traceState('popover open — injecting search input');

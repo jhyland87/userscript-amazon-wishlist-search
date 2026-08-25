@@ -12,6 +12,31 @@ someone using the script, one line per change, grouped under **Added** /
 
 ## [Unreleased]
 
+### Added
+
+- `wishlistSearchDebug(true)` now traces the whole search: the pattern the input
+  resolved to, how many rows were scanned and how long it took, which lists
+  matched, which the result cap held back, and which rows Amazon added after the
+  search ran. When nothing matches it prints the first few list names as they
+  were read, which is usually enough to see why. `wishlistSearchDebug()`'s
+  snapshot also carries the running search's term, pattern and tallies.
+
+### Fixed
+
+- Searching now finds every matching list. Amazon's markup wraps long list
+  names across lines, so a name like "3D Printer/Filaments" carried a line
+  break where it reads as a space — searching `3d printer` matched only some of
+  the lists it should have.
+- Lists that Amazon loads into the popover *after* a search has run are now
+  filtered too, instead of piling up as unrelated rows underneath the results.
+  A search also survives Amazon rebuilding the popover's contents: the term is
+  put back and re-applied.
+- When more lists match than `maxSearchResults` allows, the notice above the
+  list now says so ("Showing 10 of 28 matches") rather than silently dropping
+  the rest.
+- Highlighting now marks the text the search actually matched, and a list name
+  is never re-parsed as HTML on its way back into the row.
+
 ## [0.4.1] - 2026-08-21
 
 ### Fixed

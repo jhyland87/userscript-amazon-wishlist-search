@@ -1,4 +1,5 @@
 import { SELECTORS } from './config';
+import { normalizeName } from './name-match';
 
 /**
  * DOM helpers — always re-resolve against the live popover, since Amazon
@@ -33,9 +34,14 @@ export const getResultCount = (): HTMLElement | null =>
 export const getListItemNameSpan = (item: Element): HTMLElement | null =>
   item.querySelector<HTMLElement>(SELECTORS.listItemName);
 
-/** Read the trimmed wishlist name out of a list `<li>`. */
-export const getListItemName = (item: Element): string | null =>
-  getListItemNameSpan(item)?.textContent?.trim() ?? null;
+/**
+ * Read the wishlist name out of a list `<li>`, whitespace-normalized so it
+ * reads the way the row renders (see `name-match.ts`).
+ */
+export const getListItemName = (item: Element): string | null => {
+  const text = getListItemNameSpan(item)?.textContent;
+  return text == null ? null : normalizeName(text);
+};
 
 /**
  * "Open" means the popover exists *and* Amazon has marked it visible.
