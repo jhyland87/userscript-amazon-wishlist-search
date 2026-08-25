@@ -12,6 +12,8 @@ someone using the script, one line per change, grouped under **Added** /
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-08-25
+
 ### Added
 
 - `wishlistSearchDebug(true)` now traces the whole search: the pattern the input
