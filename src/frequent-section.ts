@@ -1,5 +1,7 @@
+import { GM, unsafeWindow } from 'vite-plugin-monkey/dist/client';
 import { CONFIG, SELECTORS } from './config';
 import {
+  el,
   getListItems,
   getListItemName,
   getListUl,
@@ -9,6 +11,8 @@ import {
 import {
   disableName,
   getTopFrequentNames,
+  getFrequencyCount,
+  onFrequenciesChange,
   recordSelection,
   removeName,
   saveFrequencies,
@@ -16,11 +20,13 @@ import {
 import {
   isFrequentCollapsed,
   isFrequentEnabled,
+  onFrequentEnabledChange,
   resetFrequentCollapsed,
   setFrequentCollapsed,
   setFrequentEnabled,
 } from './frequent-state';
 import { FREQ_ICONS } from './icons';
+import { log } from './log';
 
 /**
  * "Previously selected" section.
@@ -108,28 +114,24 @@ const buildControl = (
   icon: string,
   title: string,
   onClick: () => void,
-): HTMLSpanElement => {
-  const control = document.createElement('span');
-  control.className = 'wishlist-freq-ctrl';
-  control.style.backgroundImage = `url("${icon}")`;
-  control.title = title;
-  control.setAttribute('role', 'button');
-  control.setAttribute('aria-label', title);
-  control.addEventListener('click', (event) => {
-    // Never let the click reach Amazon's list-selection or our tracker.
-    event.preventDefault();
-    event.stopPropagation();
-    onClick();
+): HTMLSpanElement =>
+  el('span', {
+    className: 'wishlist-freq-ctrl',
+    title,
+    style: { backgroundImage: `url("${icon}")` },
+    attrs: { role: 'button', 'aria-label': title },
+    on: {
+      click: (event) => {
+        // Never let the click reach Amazon's list-selection or our tracker.
+        event.preventDefault();
+        event.stopPropagation();
+        onClick();
+      },
+    },
   });
-  return control;
-};
 
-const buildControls = (...controls: HTMLElement[]): HTMLSpanElement => {
-  const container = document.createElement('span');
-  container.className = 'wishlist-freq-ctrls';
-  for (const control of controls) container.appendChild(control);
-  return container;
-};
+const buildControls = (...controls: HTMLElement[]): HTMLSpanElement =>
+  el('span', { className: 'wishlist-freq-ctrls' }, ...controls);
 
 /**
  * The "Previously selected" header. When `enabled`, it carries a clear (✕) and
@@ -138,24 +140,23 @@ const buildControls = (...controls: HTMLElement[]): HTMLSpanElement => {
  * the control jump or resize.
  */
 const buildLabel = (enabled: boolean): HTMLDivElement => {
-  const label = document.createElement('div');
-  label.id = FREQ_LABEL_ID;
-  Object.assign(label.style, {
-    fontSize: '10px',
-    color: '#898d8d',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    padding: '4px 14px 2px',
-    margin: '0',
+  const label = el('div', {
+    id: FREQ_LABEL_ID,
+    text: 'Previously selected',
+    style: {
+      fontSize: '10px',
+      color: '#898d8d',
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px',
+      padding: '4px 14px 2px',
+      margin: '0',
+    },
   });
-  label.textContent = 'Previously selected';
 
   if (enabled) {
     // The whole label is the disclosure control, so the hit target is the full
     // width rather than a 10px caret.
-    const chevron = document.createElement('span');
-    chevron.className = 'wishlist-freq-chevron';
-    label.prepend(chevron);
+    label.prepend(el('span', { className: 'wishlist-freq-chevron' }));
     label.dataset.expandable = 'true';
     label.setAttribute('role', 'button');
     label.title = 'Show or hide previously selected lists';
@@ -196,16 +197,11 @@ const buildLabel = (enabled: boolean): HTMLDivElement => {
   return label;
 };
 
-const buildDivider = (): HTMLHRElement => {
-  const divider = document.createElement('hr');
-  divider.id = FREQ_DIVIDER_ID;
-  Object.assign(divider.style, {
-    border: 'none',
-    borderTop: '1px solid #e7e7e7',
-    margin: '4px 0',
+const buildDivider = (): HTMLHRElement =>
+  el('hr', {
+    id: FREQ_DIVIDER_ID,
+    style: { border: 'none', borderTop: '1px solid #e7e7e7', margin: '4px 0' },
   });
-  return divider;
-};
 
 /** Attach the per-row remove/disable controls to a moved list `<li>`. */
 const decorateItem = (li: HTMLElement, name: string): void => {
@@ -245,9 +241,7 @@ export const buildFrequentSection = (): DocumentFragment | null => {
   }
 
   // Container <ul> mirrors the main list's classes so items keep styling.
-  const ul = document.createElement('ul');
-  ul.id = FREQ_SECTION_ID;
-  ul.className = listUl.className;
+  const ul = el('ul', { id: FREQ_SECTION_ID, className: listUl.className });
 
   for (const name of topNames) {
     const original = nameToOriginal.get(name);
@@ -261,9 +255,7 @@ export const buildFrequentSection = (): DocumentFragment | null => {
 
   // Wrap label + list + divider in a fragment for atomic insertion.
   const fragment = document.createDocumentFragment();
-  fragment.appendChild(buildLabel(true));
-  fragment.appendChild(ul);
-  fragment.appendChild(buildDivider());
+  fragment.append(buildLabel(true), ul, buildDivider());
   return fragment;
 };
 
@@ -316,6 +308,8 @@ const restoreFrequentItems = (): void => {
 
 /** Rebuild the group in the open popover after a control action. */
 export const refreshFrequentSection = (): void => {
+  // Nothing to rebuild (e.g. toggled from the menu before the popover exists).
+  if (!getPopover()) return;
   restoreFrequentItems();
   removeFrequentSection();
   renderFrequentSection();
@@ -328,13 +322,79 @@ export const refreshFrequentSection = (): void => {
  * Refreshes the group live if a popover is currently open.
  */
 export const installFrequentHelper = (): void => {
-  window.wishlistSearchFrequent = (value?: boolean): boolean => {
+  unsafeWindow.wishlistSearchFrequent = (value?: boolean): boolean => {
     if (typeof value === 'boolean') {
       setFrequentEnabled(value);
       refreshFrequentSection();
     }
     return isFrequentEnabled();
   };
+};
+
+// Fixed ids, so re-registering updates an entry instead of adding another.
+const FREQ_MENU_ID = 'wishlist-search-toggle-frequent';
+const CLEAR_MENU_ID = 'wishlist-search-clear-frequent';
+
+// The clear entry's current caption, or undefined while it's not in the menu.
+let clearCaption: string | undefined;
+
+/**
+ * (Re)register the toggle with a caption reflecting the current state, and
+ * show the clear entry — with how many lists it would clear — only while the
+ * group is on and has history.
+ */
+const syncFrequentMenu = async (): Promise<void> => {
+  const enabled = isFrequentEnabled();
+  try {
+    await GM.registerMenuCommand(
+      `${enabled ? '✓' : '✗'} Show "Previously selected" lists`,
+      () => {
+        setFrequentEnabled(!isFrequentEnabled());
+        refreshFrequentSection();
+      },
+      { id: FREQ_MENU_ID, autoClose: true },
+    );
+
+    const count = getFrequencyCount();
+    const caption =
+      enabled && count > 0 ? `Clear "Previously selected" lists (${count})` : undefined;
+    if (caption === clearCaption) return;
+    clearCaption = caption;
+    if (caption) {
+      // Same id, so a new count updates the entry in place.
+      await GM.registerMenuCommand(
+        caption,
+        () => {
+          saveFrequencies({});
+          refreshFrequentSection();
+        },
+        { id: CLEAR_MENU_ID, autoClose: true },
+      );
+    } else {
+      GM.unregisterMenuCommand(CLEAR_MENU_ID);
+    }
+  } catch (err) {
+    log.warn('failed to update the "Previously selected" menu commands', err);
+  }
+};
+
+/**
+ * Add userscript-manager menu commands for the "Previously selected" feature:
+ * a toggle whose ✓/✗ tracks the current state, and a clear entry shown only
+ * while the group is on and has history. Both follow changes made from the
+ * popover controls, the console, or another tab.
+ *
+ * @returns Nothing.
+ * @example
+ * installFrequentMenu();
+ * // Tampermonkey menu: ✓ Show "Previously selected" lists
+ * //                    Clear "Previously selected" lists
+ * @source src/frequent-section.ts
+ */
+export const installFrequentMenu = (): void => {
+  void syncFrequentMenu();
+  onFrequentEnabledChange(() => void syncFrequentMenu());
+  onFrequenciesChange(() => void syncFrequentMenu());
 };
 
 /**

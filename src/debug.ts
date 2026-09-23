@@ -1,3 +1,4 @@
+import { unsafeWindow } from 'vite-plugin-monkey/dist/client';
 import { SELECTORS } from './config';
 import { isDebugEnabled, setDebugEnabled } from './debug-state';
 import {
@@ -74,7 +75,7 @@ export const debugSnapshot = (): Record<string, unknown> => {
  * "what's matching right now?" diagnostic.
  */
 export const installDebugControls = (): void => {
-  window.wishlistSearchDebug = (value?: boolean): Record<string, unknown> => {
+  unsafeWindow.wishlistSearchDebug = (value?: boolean): Record<string, unknown> => {
     if (typeof value === 'boolean') {
       setDebugEnabled(value);
       log.log(`debug ${value ? 'enabled' : 'disabled'} — saved, persists across refreshes`);

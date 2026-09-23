@@ -1,6 +1,12 @@
 import { CONFIG } from './config';
 import { isDebugEnabled } from './debug-state';
-import { getListItems, getListItemName, getListItemNameSpan, getSearchInput } from './dom';
+import {
+  el,
+  getListItems,
+  getListItemName,
+  getListItemNameSpan,
+  getSearchInput,
+} from './dom';
 import { setFrequentSearchOverride } from './frequent-section';
 import { log } from './log';
 import type { NameMatch } from './name-match';
@@ -84,10 +90,7 @@ const applyHighlight = (
     clearHighlight(nameSpan, name);
     return;
   }
-  const hit = document.createElement('strong');
-  const underline = document.createElement('u');
-  underline.textContent = name.slice(match.start, match.end);
-  hit.appendChild(underline);
+  const hit = el('strong', {}, el('u', { text: name.slice(match.start, match.end) }));
   // Built from nodes rather than an innerHTML string: list names are the
   // user's own text and must never be re-parsed as markup.
   nameSpan.textContent = '';

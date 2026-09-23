@@ -1,3 +1,4 @@
+import { el } from './dom';
 import type { RowStatus } from './types';
 
 /**
@@ -34,8 +35,7 @@ const ensureBadge = (li: HTMLElement): HTMLSpanElement => {
   const existing = li.querySelector(`:scope > .${STATUS_CLASS}`);
   if (existing instanceof HTMLSpanElement) return existing;
 
-  const badge = document.createElement('span');
-  badge.className = STATUS_CLASS;
+  const badge = el('span', { className: STATUS_CLASS });
   const controls = li.querySelector(`:scope > .${CTRLS_CLASS}`);
   li.insertBefore(badge, controls);
   return badge;

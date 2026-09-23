@@ -1,63 +1,62 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-// In-memory localStorage stub (the test environment is Node, no DOM storage).
-const store = new Map<string, string>();
-const localStorageStub = {
-  getItem: (key: string): string | null => store.get(key) ?? null,
-  setItem: (key: string, value: string): void => void store.set(key, value),
-  removeItem: (key: string): void => void store.delete(key),
-  clear: (): void => store.clear(),
-};
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { emitRemoteChange, gmStore, resetGm, unsafeWindow } from './gm-stub';
 
 const STORAGE_KEY = 'wishlist-search:multi-add-enabled';
 
 beforeEach(() => {
-  store.clear();
-  vi.stubGlobal('localStorage', localStorageStub);
-  // multi-add-state caches its value at import time, so re-import per test.
+  resetGm();
+  // multi-add-state caches its value per module instance, so re-import per test.
   vi.resetModules();
 });
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
+const load = async (): Promise<typeof import('../src/multi-add-state')> => {
+  const mod = await import('../src/multi-add-state');
+  await mod.loadMultiAddState();
+  return mod;
+};
 
 describe('multi-add-state', () => {
   it('falls back to the CONFIG.enableMultiAdd default when nothing is stored', async () => {
-    const { isMultiAddEnabled } = await import('../src/multi-add-state');
+    const { isMultiAddEnabled } = await load();
     const { CONFIG } = await import('../src/config');
     expect(isMultiAddEnabled()).toBe(CONFIG.enableMultiAdd);
   });
 
   it('a stored value supersedes the default', async () => {
-    store.set(STORAGE_KEY, 'false');
-    const { isMultiAddEnabled } = await import('../src/multi-add-state');
+    gmStore.set(STORAGE_KEY, false);
+    const { isMultiAddEnabled } = await load();
     expect(isMultiAddEnabled()).toBe(false);
   });
 
   it('setMultiAddEnabled updates the cached value and persists it', async () => {
-    const { isMultiAddEnabled, setMultiAddEnabled } = await import(
-      '../src/multi-add-state'
-    );
+    const { isMultiAddEnabled, setMultiAddEnabled } = await load();
     setMultiAddEnabled(false);
     expect(isMultiAddEnabled()).toBe(false);
-    expect(store.get(STORAGE_KEY)).toBe('false');
+    await vi.waitFor(() => expect(gmStore.get(STORAGE_KEY)).toBe(false));
 
     setMultiAddEnabled(true);
     expect(isMultiAddEnabled()).toBe(true);
-    expect(store.get(STORAGE_KEY)).toBe('true');
+    await vi.waitFor(() => expect(gmStore.get(STORAGE_KEY)).toBe(true));
   });
 
   it('the console helper toggles and reports state', async () => {
-    vi.stubGlobal('window', {});
-    const { installMultiAddHelper } = await import('../src/multi-add-state');
+    const { installMultiAddHelper } = await load();
     installMultiAddHelper();
 
-    const helper = window.wishlistSearchMultiAdd;
+    // Installed on the page's window, not the userscript sandbox's.
+    const helper = unsafeWindow.wishlistSearchMultiAdd;
     expect(helper).toBeTypeOf('function');
     expect(helper?.(false)).toBe(false);
-    expect(store.get(STORAGE_KEY)).toBe('false');
+    await vi.waitFor(() => expect(gmStore.get(STORAGE_KEY)).toBe(false));
     // Called with no argument it reports without changing anything.
     expect(helper?.()).toBe(false);
+  });
+
+  it('follows a change made in another tab', async () => {
+    const { isMultiAddEnabled } = await load();
+    await vi.waitFor(() => {
+      emitRemoteChange(STORAGE_KEY, false);
+      expect(isMultiAddEnabled()).toBe(false);
+    });
   });
 });

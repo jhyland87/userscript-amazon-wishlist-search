@@ -35,7 +35,21 @@ export default defineConfig(({ command }) => ({
           /^https:\/\/([a-z0-9-]+\.)?amazon\.[a-z.]+\/.+\/gp\//,
           /^https:\/\/([a-z0-9-]+\.)?amazon\.[a-z.]+\/gp\//,
         ],
-        grant: 'none',
+        // Listed explicitly rather than left to autoGrant, which doesn't
+        // reliably detect `GM.x` member access. `unsafeWindow` exposes the
+        // console helpers and reads Amazon's page globals from the sandbox.
+        grant: [
+          'GM.addStyle',
+          'GM.getValue',
+          'GM.setValue',
+          'GM.unregisterMenuCommand',
+          'GM.deleteValue',
+          'GM.listValues',
+          'GM.registerMenuCommand',
+          'GM.addValueChangeListener',
+          'GM_addElement',
+          'unsafeWindow',
+        ],
         homepage: 'https://github.com/jhyland87/userscript-amazon-wishlist-search',
         updateURL: 'https://github.com/jhyland87/userscript-amazon-wishlist-search/releases/latest/download/amazon-wishlist-search.user.js',
         downloadURL: 'https://github.com/jhyland87/userscript-amazon-wishlist-search/releases/latest/download/amazon-wishlist-search.user.js',

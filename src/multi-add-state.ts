@@ -1,31 +1,40 @@
+import { unsafeWindow } from 'vite-plugin-monkey/dist/client';
 import { CONFIG, STORAGE_KEYS } from './config';
+import { isBoolean, onStoredChange, readStored, writeStored } from './storage';
 
 /**
  * Runtime on/off state for adding items in place.
  *
  * The effective value is, in priority order:
- *   1. a value the user saved from the console (localStorage)
+ *   1. a value the user saved from the console (GM storage)
  *   2. the `CONFIG.enableMultiAdd` default
  *
  * Turning this off restores Amazon's stock behaviour exactly — the click is
  * left alone, the confirmation modal opens, and the popover closes. That's the
  * escape hatch if Amazon ever changes the endpoint.
  *
- * Cached in a module variable so the click path doesn't touch localStorage on
+ * Cached in a module variable so the click path doesn't touch storage on
  * every row click.
  */
-const readStored = (): boolean | null => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.multiAddEnabled);
-    if (raw === null) return null;
-    return raw === 'true';
-  } catch {
-    return null;
-  }
-};
+let enabled: boolean = CONFIG.enableMultiAdd;
 
-// Stored value supersedes the compiled-in default.
-let enabled: boolean = readStored() ?? CONFIG.enableMultiAdd;
+/**
+ * Load the stored flag into the cache and keep it in sync with other tabs.
+ *
+ * @returns Resolves once the stored value (if any) is cached.
+ * @example
+ * await loadMultiAddState();
+ * isMultiAddEnabled(); // false, if it was switched off
+ * @source src/multi-add-state.ts
+ */
+export const loadMultiAddState = async (): Promise<void> => {
+  enabled =
+    (await readStored(STORAGE_KEYS.multiAddEnabled, isBoolean)) ??
+    CONFIG.enableMultiAdd;
+  onStoredChange(STORAGE_KEYS.multiAddEnabled, isBoolean, (value) => {
+    enabled = value ?? CONFIG.enableMultiAdd;
+  });
+};
 
 /**
  * Whether row clicks are intercepted and added in place.
@@ -48,11 +57,7 @@ export const isMultiAddEnabled = (): boolean => enabled;
  */
 export const setMultiAddEnabled = (value: boolean): boolean => {
   enabled = value;
-  try {
-    localStorage.setItem(STORAGE_KEYS.multiAddEnabled, String(value));
-  } catch {
-    // Ignore storage failures (private mode, disabled storage, etc.).
-  }
+  void writeStored(STORAGE_KEYS.multiAddEnabled, value);
   return enabled;
 };
 
@@ -70,7 +75,7 @@ export const setMultiAddEnabled = (value: boolean): boolean => {
  * @source src/multi-add-state.ts
  */
 export const installMultiAddHelper = (): void => {
-  window.wishlistSearchMultiAdd = (value?: boolean): boolean => {
+  unsafeWindow.wishlistSearchMultiAdd = (value?: boolean): boolean => {
     if (typeof value === 'boolean') setMultiAddEnabled(value);
     return isMultiAddEnabled();
   };

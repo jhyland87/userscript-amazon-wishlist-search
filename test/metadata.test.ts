@@ -34,8 +34,21 @@ describe('userscript metadata', () => {
     );
   });
 
-  it('runs without privileged grants', () => {
-    expect(metaValue(meta, 'grant')).toBe('none');
+  it('requests exactly the GM APIs it uses', () => {
+    // A new grant widens what the script can do, so it should be a deliberate
+    // change to this list rather than a side effect of an import.
+    expect([...(meta.get('grant') ?? [])].sort()).toEqual([
+      'GM.addStyle',
+      'GM.addValueChangeListener',
+      'GM.deleteValue',
+      'GM.getValue',
+      'GM.listValues',
+      'GM.registerMenuCommand',
+      'GM.setValue',
+      'GM.unregisterMenuCommand',
+      'GM_addElement',
+      'unsafeWindow',
+    ]);
   });
 
   it('targets Amazon product pages via TLD-agnostic @include rules', () => {

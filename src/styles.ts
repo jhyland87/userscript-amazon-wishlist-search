@@ -1,3 +1,4 @@
+import { GM } from 'vite-plugin-monkey/dist/client';
 import { SELECTORS } from './config';
 import { FREQ_ICONS, STATUS_ICONS } from './icons';
 
@@ -5,13 +6,12 @@ import { FREQ_ICONS, STATUS_ICONS } from './icons';
  * Hover/focus styling needs real CSS (inline styles can't express pseudo-
  * classes), so the stylesheet is injected once on first use.
  */
-const STYLE_ID = 'wishlist-search-style';
+let injected = false;
 
 export const injectStylesheet = (): void => {
-  if (document.getElementById(STYLE_ID)) return;
-  const style = document.createElement('style');
-  style.id = STYLE_ID;
-  style.textContent = `
+  if (injected) return;
+  injected = true;
+  void GM.addStyle(`
     #wishlist-search-wrap {
       position: relative;
       margin: 8px;
@@ -196,6 +196,5 @@ export const injectStylesheet = (): void => {
     .wishlist-add-status ~ .wishlist-freq-ctrls {
       right: 36px;
     }
-  `;
-  document.head.appendChild(style);
+  `);
 };

@@ -1,3 +1,4 @@
+import { unsafeWindow } from 'vite-plugin-monkey/dist/client';
 import { CONFIG, PAGE_SELECTORS, SELECTORS } from './config';
 import type { ListTarget } from './types';
 import {
@@ -91,7 +92,7 @@ export const getVendorId = (): string =>
  * getSessionId(); // '131-8483265-0913921'
  * @source src/page-params.ts
  */
-export const getSessionId = (): string | null => window.ue_sid ?? null;
+export const getSessionId = (): string | null => unsafeWindow.ue_sid ?? null;
 
 /**
  * The marketplace ID, which forms the second half of an item's external ID.
@@ -101,7 +102,7 @@ export const getSessionId = (): string | null => window.ue_sid ?? null;
  * getMerchantId(); // 'ATVPDKIKX0DER'
  * @source src/page-params.ts
  */
-export const getMerchantId = (): string | null => window.ue?.mid ?? null;
+export const getMerchantId = (): string | null => unsafeWindow.ue?.mid ?? null;
 
 /**
  * The product title the remove endpoint echoes back in its confirmation.

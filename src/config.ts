@@ -40,7 +40,7 @@ export const CONFIG: WishlistSearchConfig = {
 export const ADD_TO_LIST_PATH = '/hz/wishlist/additemtolist';
 export const REMOVE_FROM_LIST_PATH = '/hz/wishlist/removeitem';
 
-/** Centralized localStorage keys, so every persisted value has one home. */
+/** Centralized GM storage keys, so every persisted value has one home. */
 export const STORAGE_KEYS = {
   /** Map of wishlist name -> selection count. */
   frequencies: 'wishlist-search:frequent-lists',

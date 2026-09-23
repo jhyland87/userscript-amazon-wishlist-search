@@ -43,7 +43,8 @@ const tryInject = (): void => {
     return;
   }
 
-  if (!wasOpen) {
+  const justOpened = !wasOpen;
+  if (justOpened) {
     wasOpen = true;
     clearActiveListItem();
     // Every open starts with the group collapsed, so it can't fill the popover.
@@ -71,9 +72,11 @@ const tryInject = (): void => {
     addListSearchInput();
     return;
   }
-  // Already injected and the popover just became visible — focus it.
-  traceState('already injected — focusing input');
-  searchFocus();
+  // Already injected. Focus only when the popover has just opened: this runs
+  // on every mutation, including Amazon paging in more lists, and focusing
+  // scrolls the field back to the top — away from where the user scrolled.
+  traceState('already injected');
+  if (justOpened) searchFocus();
 };
 
 /** ESC clears the search without closing the popover. */

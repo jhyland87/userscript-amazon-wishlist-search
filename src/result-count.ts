@@ -1,4 +1,4 @@
-import { getListUl, getResultCount } from './dom';
+import { el, getListUl, getResultCount } from './dom';
 import type { StylePatch } from './types';
 
 /** Result-count notice element shown above the list. */
@@ -9,15 +9,16 @@ export const createResultCountElement = (): void => {
   const listUl = getListUl();
   if (!listUl?.parentNode) return;
 
-  const node = document.createElement('span');
-  node.id = 'wishlist-search-result-count';
-  node.className = 'a-size-small atwl-hz-vertical-align-middle';
-  Object.assign(node.style, {
-    margin: '5px 0',
-    fontWeight: '700',
-    width: '100%',
-    textAlign: 'center',
-    display: 'none',
+  const node = el('span', {
+    id: 'wishlist-search-result-count',
+    className: 'a-size-small atwl-hz-vertical-align-middle',
+    style: {
+      margin: '5px 0',
+      fontWeight: '700',
+      width: '100%',
+      textAlign: 'center',
+      display: 'none',
+    },
   });
 
   listUl.parentNode.insertBefore(node, listUl);

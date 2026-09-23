@@ -1,6 +1,7 @@
 import { attachAddInterceptor } from './add-interceptor';
 import { CONFIG, INJECTED_ATTR, SELECTORS } from './config';
 import {
+  el,
   getListUl,
   getPopover,
   getSearchInput,
@@ -68,17 +69,20 @@ export const searchFocus = (): void => {
 };
 
 const buildSearchInput = (): HTMLInputElement => {
-  const input = document.createElement('input');
-  Object.assign(input, {
+  const input = el('input', {
     id: 'wishlist-search',
-    type: 'search',
-    placeholder: 'Search lists...',
-    autocomplete: 'off',
-    autocorrect: 'off',
-    spellcheck: false,
+    attrs: {
+      type: 'search',
+      placeholder: 'Search lists...',
+      autocomplete: 'off',
+      autocorrect: 'off',
+      spellcheck: 'false',
+    },
+    on: {
+      keydown: () => resetSearchInput(input),
+      keyup: () => searchTrigger(input.value),
+    },
   });
-  input.addEventListener('keydown', () => resetSearchInput(input));
-  input.addEventListener('keyup', () => searchTrigger(input.value));
   return input;
 };
 
@@ -96,34 +100,32 @@ const applyRegexToggleState = (button: HTMLElement): void => {
 
 /** A regex on/off toggle that lives inside the search input's right edge. */
 const buildRegexToggle = (): HTMLSpanElement => {
-  const button = document.createElement('span');
-  button.id = 'wishlist-search-regex';
-  button.setAttribute('role', 'button');
-  applyRegexToggleState(button);
-  // Keep the input focused when the toggle is clicked.
-  button.addEventListener('mousedown', (event) => event.preventDefault());
-  button.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setRegexEnabled(!isRegexEnabled());
-    applyRegexToggleState(button);
-    const input = getSearchInput();
-    if (input) {
-      searchTrigger(input.value);
-      input.focus();
-    }
+  const button = el('span', {
+    id: 'wishlist-search-regex',
+    attrs: { role: 'button' },
+    on: {
+      // Keep the input focused when the toggle is clicked.
+      mousedown: (event) => event.preventDefault(),
+      click: (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setRegexEnabled(!isRegexEnabled());
+        applyRegexToggleState(button);
+        const input = getSearchInput();
+        if (input) {
+          searchTrigger(input.value);
+          input.focus();
+        }
+      },
+    },
   });
+  applyRegexToggleState(button);
   return button;
 };
 
 /** The search input wrapped with its inline regex toggle. */
-const buildSearchField = (): HTMLDivElement => {
-  const wrap = document.createElement('div');
-  wrap.id = 'wishlist-search-wrap';
-  wrap.appendChild(buildSearchInput());
-  wrap.appendChild(buildRegexToggle());
-  return wrap;
-};
+const buildSearchField = (): HTMLDivElement =>
+  el('div', { id: 'wishlist-search-wrap' }, buildSearchInput(), buildRegexToggle());
 
 /**
  * Align the popover's right edge to the "Add to List" button's right edge.

@@ -97,7 +97,7 @@ hook), then runs the suite in [`test/`](./test):
   each response, retry a rejected token exactly once, and run one at a time.
 - `metadata.test.ts` — asserts on the built `dist/*.user.js`: that `@version`
   matches `package.json`, that `@updateURL`/`@downloadURL` point at the latest
-  release asset (and not the raw `main` branch), `@grant none`, and the
+  release asset (and not the raw `main` branch), the exact `@grant` list, and the
   `@include` rules. This guards the auto-update wiring.
 - `release.test.ts` — a release-integrity check (mirrors
   [unwall](https://github.com/kelesmert/unwall)): downloads the asset from the
@@ -138,7 +138,8 @@ src/
   dom.ts              Live-popover DOM helpers
   regex.ts            Regex parsing / escaping / compiling helpers
   regex-state.ts      Runtime on/off toggle for regex search (persisted)
-  frequencies.ts      localStorage selection-frequency + blocklist tracking
+  frequencies.ts      Selection-frequency + blocklist tracking (persisted)
+  storage.ts          GM storage wrapper + one-time localStorage migration
   frequent-section.ts "Previously selected" group + its inline controls
   frequent-state.ts   Runtime on/off toggle for the group (persisted)
   add-interceptor.ts  Captures row clicks so items are added in place
@@ -173,8 +174,9 @@ test/
 
 Behaviour is controlled by `CONFIG` in [`src/config.ts`](./src/config.ts):
 debounce delay, max results shown, regex mode, and the frequent-lists group.
-Every persisted value's `localStorage` key lives in `STORAGE_KEYS` in the same
-file. When the frequent-lists group is enabled, a `window.clearWishlistHistory()`
+Every persisted value's storage key lives in `STORAGE_KEYS` in the same file.
+Values are kept in the userscript manager's storage (`GM.getValue`/`GM.setValue`),
+so they're shared across Amazon domains and stay in sync between open tabs. When the frequent-lists group is enabled, a `window.clearWishlistHistory()`
 helper is exposed in the console to reset it.
 
 ### Adding to several lists at once
@@ -224,6 +226,11 @@ The group can be managed inline — the controls stay hidden until you hover:
   **toggle** turns the feature off. While off, the label stays (struck through,
   italic) with just the toggle — click it (or run `wishlistSearchFrequent(true)`)
   to turn it back on.
+- The userscript manager's menu (e.g. the Tampermonkey toolbar icon) has a
+  **Show "Previously selected" lists** entry that toggles the feature too; its
+  ✓/✗ shows the current state. While the group is on and has history, a
+  **Clear "Previously selected" lists (N)** entry appears beside it, where N is
+  how many lists it would clear.
 
 ```js
 wishlistSearchFrequent(true)   // enable the group (persists across refreshes)
@@ -246,7 +253,7 @@ A small icon inside the right edge of the search box toggles regex mode
 ### Debug logging
 
 `CONFIG.debug` is the compile-time default, but you can toggle debug logging at
-runtime from the browser console — the choice is saved to localStorage and
+runtime from the browser console — the choice is saved to the script's storage and
 persists across refreshes (overriding the default):
 
 ```js

@@ -1,13 +1,14 @@
+import { unsafeWindow } from 'vite-plugin-monkey/dist/client';
 import { CONFIG, STORAGE_KEYS } from './config';
 import { getListItems, getListItemName } from './dom';
-import { log } from './log';
 import { normalizeName } from './name-match';
+import { deleteStored, onStoredChange, readStored, writeStored } from './storage';
 import type { FrequencyMap } from './types';
 
 /**
  * Selection frequency tracking.
  *
- * Persisted in localStorage as a { [listName]: count } map. Keyed by list
+ * Persisted in GM storage as a { [listName]: count } map. Keyed by list
  * name (rather than list ID) because the name is what's shown to the user
  * and the rare case of a rename simply resets that one list's count.
  */
@@ -42,22 +43,47 @@ const normalizeKeys = (map: FrequencyMap): FrequencyMap => {
   return folded;
 };
 
-export const loadFrequencies = (): FrequencyMap => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.frequencies);
-    const parsed: unknown = raw ? JSON.parse(raw) : {};
-    return isFrequencyMap(parsed) ? normalizeKeys(parsed) : {};
-  } catch {
-    return {};
-  }
+// In-memory copies of the stored map and blocklist, so the render and click
+// paths read synchronously. Filled by `loadFrequencyState` at startup.
+let frequencies: FrequencyMap = {};
+let disabled = new Set<string>();
+
+// Notified whenever the frequency map changes, locally or from another tab.
+const frequencyListeners = new Set<() => void>();
+const setFrequencies = (map: FrequencyMap): void => {
+  frequencies = map;
+  for (const listener of frequencyListeners) listener();
 };
 
+export const loadFrequencies = (): FrequencyMap => ({ ...frequencies });
+
 export const saveFrequencies = (map: FrequencyMap): void => {
-  try {
-    localStorage.setItem(STORAGE_KEYS.frequencies, JSON.stringify(map));
-  } catch (err) {
-    log.warn('failed to persist frequencies', err);
-  }
+  setFrequencies({ ...map });
+  void writeStored(STORAGE_KEYS.frequencies, frequencies);
+};
+
+/**
+ * How many lists have a recorded selection — everything a clear would remove.
+ *
+ * @returns The number of entries in the frequency map.
+ * @example
+ * getFrequencyCount(); // 3
+ * @source src/frequencies.ts
+ */
+export const getFrequencyCount = (): number => Object.keys(frequencies).length;
+
+/**
+ * Run `listener` whenever the frequency map changes — a selection, an undo, a
+ * clear, or a change made in another tab.
+ *
+ * @param listener - Called after the cached map is updated.
+ * @returns Nothing.
+ * @example
+ * onFrequenciesChange(() => log.debug('history changed'));
+ * @source src/frequencies.ts
+ */
+export const onFrequenciesChange = (listener: () => void): void => {
+  frequencyListeners.add(listener);
 };
 
 export const recordSelection = (listName: string): void => {
@@ -96,31 +122,42 @@ export const removeName = (listName: string): void => {
  * Disabled-name blocklist.
  *
  * Names the user has opted out of the "Previously selected" group entirely.
- * Persisted as a JSON array of names, separate from the frequency map so that
+ * Persisted as an array of names, separate from the frequency map so that
  * clearing history doesn't lose the blocklist and vice-versa.
  */
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === 'string');
 
-export const loadDisabled = (): Set<string> => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.frequentDisabled);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return new Set(isStringArray(parsed) ? parsed.map(normalizeName) : []);
-  } catch {
-    return new Set();
-  }
-};
+export const loadDisabled = (): Set<string> => new Set(disabled);
 
 export const saveDisabled = (names: Set<string>): void => {
-  try {
-    localStorage.setItem(
-      STORAGE_KEYS.frequentDisabled,
-      JSON.stringify(Array.from(names)),
-    );
-  } catch (err) {
-    log.warn('failed to persist disabled list', err);
-  }
+  disabled = new Set(names);
+  void writeStored(STORAGE_KEYS.frequentDisabled, Array.from(disabled));
+};
+
+/**
+ * Load the stored frequency map and blocklist into memory, and keep both in
+ * sync with other tabs so a stale copy here can't overwrite their writes.
+ *
+ * @returns Resolves once both values are cached.
+ * @example
+ * await loadFrequencyState();
+ * loadFrequencies(); // {Books: 3, Tools: 1}
+ * @source src/frequencies.ts
+ */
+export const loadFrequencyState = async (): Promise<void> => {
+  const [map, names] = await Promise.all([
+    readStored(STORAGE_KEYS.frequencies, isFrequencyMap),
+    readStored(STORAGE_KEYS.frequentDisabled, isStringArray),
+  ]);
+  frequencies = normalizeKeys(map ?? {});
+  disabled = new Set((names ?? []).map(normalizeName));
+  onStoredChange(STORAGE_KEYS.frequencies, isFrequencyMap, (value) => {
+    setFrequencies(normalizeKeys(value ?? {}));
+  });
+  onStoredChange(STORAGE_KEYS.frequentDisabled, isStringArray, (value) => {
+    disabled = new Set((value ?? []).map(normalizeName));
+  });
 };
 
 /** Block a list name so it never reappears in the "Previously selected" group. */
@@ -157,6 +194,8 @@ export const getTopFrequentNames = (n: number): string[] => {
 /** Expose a global helper to clear history when frequent lists are enabled. */
 export const installClearHistoryHelper = (): void => {
   if (!CONFIG.enableFrequentLists) return;
-  window.clearWishlistHistory = () =>
-    localStorage.removeItem(STORAGE_KEYS.frequencies);
+  unsafeWindow.clearWishlistHistory = () => {
+    setFrequencies({});
+    void deleteStored(STORAGE_KEYS.frequencies);
+  };
 };

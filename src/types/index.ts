@@ -19,7 +19,7 @@ export interface WishlistSearchConfig {
   /**
    * Default for regex search mode. Overridden at runtime by the toggle inside
    * the search input (`true`/`'enable'` → on, otherwise off); the choice is
-   * saved to localStorage. See `regex-state.ts`.
+   * saved to GM storage. See `regex-state.ts`.
    */
   readonly regexSearches: RegexSearchMode;
   /** Show a "Previously selected" group at the top of the list. */
@@ -117,6 +117,28 @@ export type RowStatus = 'pending' | 'added' | 'failed';
 
 /** Inline style patch applied to an injected node. */
 export type StylePatch = Partial<CSSStyleDeclaration>;
+
+/**
+ * Everything `el()` can set on a new element in one call.
+ *
+ * @category DOM
+ * @group Types
+ */
+export interface ElementProps {
+  id?: string;
+  className?: string;
+  /** Set as `textContent` (never parsed as HTML). */
+  text?: string;
+  /** Tooltip text. */
+  title?: string;
+  style?: StylePatch;
+  /** Plain attributes, e.g. `{role: 'button', type: 'search'}`. */
+  attrs?: Record<string, string>;
+  /** `data-*` values, keyed as in `element.dataset`. */
+  dataset?: Record<string, string>;
+  /** Event listeners, keyed by event type. */
+  on?: Record<string, (event: Event) => void>;
+}
 
 /** Console methods the logger supports. */
 export type LogMethod = 'log' | 'warn' | 'error' | 'debug';

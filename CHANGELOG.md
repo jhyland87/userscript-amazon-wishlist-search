@@ -12,6 +12,32 @@ someone using the script, one line per change, grouped under **Added** /
 
 ## [Unreleased]
 
+### Added
+
+- A **Show "Previously selected" lists** entry in the userscript manager's menu
+  toggles the "Previously selected" group without opening the popover. Its
+  ✓/✗ shows whether the group is on.
+- A **Clear "Previously selected" lists (N)** menu entry, shown while the
+  group is on and has history, clears it in one click. N is how many lists
+  it would clear. Lists you've hidden from the group stay hidden.
+
+### Fixed
+
+- Scrolling down the popover to load more lists no longer jumps the list back
+  to the top when the new lists arrive.
+
+### Changed
+
+- Settings and "Previously selected" history are now kept in the userscript
+  manager's storage instead of Amazon's page storage. They're shared across
+  Amazon domains, and a change made in one tab now reaches your other open
+  tabs. Existing settings and history move over automatically the first time
+  the new version runs.
+- The script now asks the userscript manager for the storage and style APIs it
+  uses (`@grant GM.getValue`, `GM.addStyle`, …) instead of running with
+  `@grant none`. The console helpers (`wishlistSearchDebug()` and the others)
+  work as before.
+
 ## [0.4.2] - 2026-08-25
 
 ### Added
