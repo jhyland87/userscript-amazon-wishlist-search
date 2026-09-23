@@ -12,6 +12,11 @@ someone using the script, one line per change, grouped under **Added** /
 
 ## [Unreleased]
 
+### Fixed
+
+- Clearing a search (emptying the box or pressing Esc) now removes the bold
+  underline from the names that had matched.
+
 ## [0.5.0] - 2026-09-23
 
 ### Added

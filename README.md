@@ -104,6 +104,15 @@ hook), then runs the suite in [`test/`](./test):
   latest GitHub release, hashes it, and asserts the release notes publish that
   SHA-256. It is **skipped** unless run via `pnpm test:release`
   (`CHECK_GITHUB_RELEASE=1`).
+- `search.test.ts`, `observer.test.ts`, `add-interceptor.test.ts` — DOM tests
+  (run under [happy-dom](https://github.com/capricorn86/happy-dom) against a
+  mock popover built by `test/popover-fixture.ts`): filtering, highlighting and
+  the result cap; injecting on open without jumping the list back to the top
+  as Amazon pages in more lists; and adding in place, undo, and every hand-off
+  back to Amazon.
+
+GM APIs (`GM.getValue`, `GM.registerMenuCommand`, …) are replaced by an
+in-memory fake, `test/gm-stub.ts`, aliased in `vitest.config.ts`.
 
 ## Release & auto-update
 

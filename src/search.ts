@@ -77,7 +77,10 @@ const escapeHtml = (text: string): string =>
 
 /** Drop any highlighting, leaving the name as plain (normalized) text. */
 const clearHighlight = (nameSpan: HTMLElement, name: string): void => {
-  if (nameSpan.textContent !== name) nameSpan.textContent = name;
+  // A highlight changes the markup but not the text, so check both.
+  if (nameSpan.childElementCount > 0 || nameSpan.textContent !== name) {
+    nameSpan.textContent = name;
+  }
 };
 
 /** Rewrite the name span with the matched span wrapped in `<strong><u>`. */
