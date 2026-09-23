@@ -17,6 +17,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('migrateLegacyStorage', () => {
@@ -46,8 +47,15 @@ describe('migrateLegacyStorage', () => {
   it('leaves an unparseable value in place and still migrates the rest', async () => {
     legacy.set('wishlist-search:frequent-lists', '{not json');
     legacy.set('wishlist-search:multi-add-enabled', 'false');
+    // The skip is logged as a warning; capture it instead of printing it.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { migrateLegacyStorage } = await import('../src/storage');
     await migrateLegacyStorage();
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('skipping unreadable legacy value for wishlist-search:frequent-lists'),
+      expect.any(SyntaxError),
+    );
 
     expect(legacy.get('wishlist-search:frequent-lists')).toBe('{not json');
     expect(gmStore.has('wishlist-search:frequent-lists')).toBe(false);
