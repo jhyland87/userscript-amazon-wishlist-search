@@ -12,6 +12,8 @@ someone using the script, one line per change, grouped under **Added** /
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-23
+
 ### Added
 
 - A **Show "Previously selected" lists** entry in the userscript manager's menu
