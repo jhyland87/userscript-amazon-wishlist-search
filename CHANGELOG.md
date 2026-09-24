@@ -12,6 +12,8 @@ someone using the script, one line per change, grouped under **Added** /
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-23
+
 ### Changed
 
 - New script icon: a magnifying glass over an orange smile arrow. It follows
