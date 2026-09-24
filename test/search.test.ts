@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetGm } from './gm-stub';
-import { addRows, getRow, mountPage, visibleNames } from './popover-fixture';
+import { addRows, addSpinner, getRow, mountPage, visibleNames } from './popover-fixture';
 
 const NAMES = ['Books', 'Board Games', 'Tools', 'Garden Tools', 'Gifts'];
 
@@ -24,6 +24,11 @@ const searchInput = (): HTMLInputElement => {
 
 const resultText = (): string | undefined =>
   document.querySelector('#wishlist-search-result-count')?.innerHTML;
+
+/** Whether the result-count notice is showing at all. */
+const resultShown = (): boolean =>
+  document.querySelector<HTMLElement>('#wishlist-search-result-count')?.style.display !==
+  'none';
 
 beforeEach(() => {
   resetGm();
@@ -144,5 +149,100 @@ describe('searchTrigger', () => {
     expect(searchInput().value).toBe('');
     // Highlighting is removed too.
     expect(getRow('Tools').querySelector('strong')).toBeNull();
+  });
+});
+
+describe('while Amazon is still loading lists', () => {
+  const POLL_MS = 250;
+
+  it('says it is searching instead of reporting no results', async () => {
+    vi.useFakeTimers();
+    const { searchList } = await setup();
+    addSpinner();
+    searchList('gps');
+    expect(resultText()).toBe('Searching for <em>gps</em>…');
+    expect(searchInput().style.color).not.toBe('#ff0000');
+  });
+
+  it('shows the match once the list it is on loads in', async () => {
+    vi.useFakeTimers();
+    const { searchList, refilterListItems } = await setup();
+    const spinner = addSpinner();
+    searchList('gps');
+
+    addRows(['GPS Tracker']);
+    spinner.remove();
+    refilterListItems();
+
+    expect(visibleNames()).toEqual(['GPS Tracker']);
+    expect(resultShown()).toBe(false);
+    expect(searchInput().style.color).toBe('inherit');
+  });
+
+  it('reports no results only after loading finishes', async () => {
+    vi.useFakeTimers();
+    const { searchList } = await setup();
+    const spinner = addSpinner();
+    searchList('gps');
+
+    vi.advanceTimersByTime(POLL_MS * 3);
+    expect(resultText()).toBe('Searching for <em>gps</em>…');
+
+    // Amazon hides the spinner rather than removing it; no DOM event fires.
+    spinner.style.display = 'none';
+    vi.advanceTimersByTime(POLL_MS);
+    expect(resultText()).toBe('0 results for <em>gps</em>');
+    expect(searchInput().style.color).toBe('#ff0000');
+  });
+
+  it('stops waiting on a spinner that never clears', async () => {
+    vi.useFakeTimers();
+    const { searchList } = await setup();
+    addSpinner();
+    searchList('gps');
+    vi.advanceTimersByTime(10000 + POLL_MS);
+    expect(resultText()).toBe('0 results for <em>gps</em>');
+  });
+
+  it('leaves the spinner row itself alone', async () => {
+    vi.useFakeTimers();
+    const { searchList } = await setup();
+    const spinner = addSpinner();
+    searchList('gps');
+    expect(spinner.style.display).toBe('');
+  });
+
+  it('keeps searching across pages until the last one arrives', async () => {
+    vi.useFakeTimers();
+    const { searchList, refilterListItems } = await setup();
+    let spinner = addSpinner();
+    searchList('gps');
+
+    // A page with no match: Amazon swaps in its rows plus a new spinner.
+    spinner.remove();
+    addRows(['Kitchen', 'Office']);
+    spinner = addSpinner();
+    refilterListItems();
+    vi.advanceTimersByTime(POLL_MS);
+    expect(resultText()).toBe('Searching for <em>gps</em>…');
+
+    // The last page has no spinner.
+    spinner.remove();
+    addRows(['Garage']);
+    refilterListItems();
+    expect(resultText()).toBe('0 results for <em>gps</em>');
+  });
+
+  it('a new search replaces the one that was waiting', async () => {
+    vi.useFakeTimers();
+    const { searchList } = await setup();
+    const spinner = addSpinner();
+    searchList('gps');
+    searchList('tools');
+    spinner.remove();
+    vi.advanceTimersByTime(POLL_MS);
+    expect(visibleNames()).toEqual(['Tools', 'Garden Tools']);
+    // All matches fit, so the notice is hidden rather than left on "gps".
+    expect(resultShown()).toBe(false);
   });
 });

@@ -6,6 +6,7 @@ import {
   getListItemName,
   getListItemNameSpan,
   getSearchInput,
+  isListLoading,
 } from './dom';
 import { setFrequentSearchOverride } from './frequent-section';
 import { log } from './log';
@@ -257,10 +258,51 @@ const logRefilterSummary = (
   if (newNames.length > 0) log.debug('newly matched:', newNames);
 };
 
-/** Update the notice above the list to reflect the current tallies. */
-const renderResultCount = (active: SearchState): void => {
+// While Amazon is still paging lists in, "0 results" would be premature. The
+// spinner can be hidden without a DOM change the observer sees, so it's polled.
+const LOADING_POLL_MS = 250;
+// Stop waiting eventually, so a spinner that never clears can't leave the
+// notice on "Searching…" for good.
+const LOADING_GIVE_UP_MS = 10000;
+let loadingTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Re-check `active` once loading may have finished. */
+const waitForLoading = (active: SearchState, startedAt: number): void => {
+  if (loadingTimer) clearTimeout(loadingTimer);
+  loadingTimer = setTimeout(() => {
+    loadingTimer = null;
+    // A new search, or a cleared one, has taken over.
+    if (state !== active) return;
+    renderResultCount(active, startedAt);
+  }, LOADING_POLL_MS);
+};
+
+/**
+ * Update the notice above the list to reflect the current tallies.
+ *
+ * @param active - The running search.
+ * @param waitingSince - When this search started waiting on Amazon to finish
+ *   loading lists; omitted for a fresh render.
+ */
+const renderResultCount = (
+  active: SearchState,
+  waitingSince: number = Date.now(),
+): void => {
   const input = getSearchInput();
   if (!input) return;
+
+  if (
+    active.matchCount === 0 &&
+    isListLoading() &&
+    Date.now() - waitingSince < LOADING_GIVE_UP_MS
+  ) {
+    updateSearchResultTxt(`Searching for <em>${escapeHtml(active.term)}</em>…`, {
+      color: '#00000087',
+    });
+    input.style.color = 'inherit';
+    waitForLoading(active, waitingSince);
+    return;
+  }
 
   if (active.matchCount === 0) {
     updateSearchResultTxt(`0 results for <em>${escapeHtml(active.term)}</em>`, {

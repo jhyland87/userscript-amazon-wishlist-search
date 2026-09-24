@@ -71,6 +71,20 @@ export const addRows = (names: string[]): HTMLLIElement[] => {
   return rows;
 };
 
+/**
+ * Append the spinner row Amazon ends each page of lists with while more are
+ * still to come (markup from a captured `atlaapi` response).
+ */
+export const addSpinner = (): HTMLLIElement => {
+  const li = document.createElement('li');
+  li.className = 'lists-addtolist-scroll-spinner-element';
+  li.innerHTML =
+    '<span class="a-list-item"><div id="lists-addtolist-scroll-spinner" ' +
+    'class="a-spinner-wrapper"><span class="a-spinner a-spinner-medium"></span></div></span>';
+  getUl().append(li);
+  return li;
+};
+
 export const getUl = (): HTMLUListElement => {
   const ul = document.querySelector<HTMLUListElement>('#atwl-dd-ul');
   if (!ul) throw new Error('fixture: no list <ul> mounted');

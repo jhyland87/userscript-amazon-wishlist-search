@@ -1,4 +1,4 @@
-# Amazon Wishlist Search
+# <img src="assets/icon.svg" width="40" height="40" alt="" align="top"> Amazon Wishlist Search
 
 A userscript that adds a search box to Amazon's **Add to List** wishlist popover,
 so you can filter long wishlist menus by typing. Clicking a list adds the item

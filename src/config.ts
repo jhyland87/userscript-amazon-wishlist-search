@@ -100,6 +100,13 @@ export const SELECTORS = {
   searchWrap: '#wishlist-search-wrap',
   /** Injected: the result-count notice. */
   resultCount: '#wishlist-search-result-count',
+  /**
+   * The spinner row Amazon appends to each page of lists while more are still
+   * to come (absent from the last page). `.a-spinner` is its generic spinner
+   * class, kept as a fallback in case the row is renamed.
+   */
+  loadingIndicator:
+    '#lists-addtolist-scroll-spinner, .lists-addtolist-scroll-spinner-element, .a-spinner',
 } as const;
 
 /**

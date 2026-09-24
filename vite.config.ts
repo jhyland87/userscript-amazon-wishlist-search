@@ -1,6 +1,16 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import mkcert from 'vite-plugin-mkcert';
 import monkey from 'vite-plugin-monkey';
+
+// The @icon, from assets/icon.svg (also shown in the README). It carries a
+// light and a dark version plus a prefers-color-scheme query that picks one.
+// Comments and indentation are stripped to keep the data URI short.
+const ICON_SVG = readFileSync(new URL('./assets/icon.svg', import.meta.url), 'utf8')
+  .replace(/<!--[\s\S]*?-->/g, '')
+  .replace(/>\s+</g, '><')
+  .replace(/\s+/g, ' ')
+  .trim();
 
 // https://github.com/lisonge/vite-plugin-monkey
 export default defineConfig(({ command }) => ({
@@ -23,7 +33,7 @@ export default defineConfig(({ command }) => ({
         description:
           "Adds a text input field to the top of the wishlist popover to add a search feature",
         author: 'Justin Hyland',
-        icon: "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Cpath%20d='M16%2022%20h24%20a3%203%200%200%201%203%203%20l2.4%2024%20a4%204%200%200%201-4%204.4%20H14.6%20a4%204%200%200%201-4-4.4%20L13%2025%20a3%203%200%200%201%203-3%20z'%20fill='%23232f3e'/%3E%3Cpath%20d='M22%2024%20v-4%20a6%206%200%200%201%2012%200%20v4'%20fill='none'%20stroke='%23232f3e'%20stroke-width='3.5'%20stroke-linecap='round'/%3E%3Ccircle%20cx='44'%20cy='42'%20r='11'%20fill='%23fff'%20stroke='%23ff9900'%20stroke-width='4'/%3E%3Cline%20x1='52'%20y1='50'%20x2='60'%20y2='58'%20stroke='%23ff9900'%20stroke-width='5'%20stroke-linecap='round'/%3E%3C/svg%3E",
+        icon: `data:image/svg+xml,${encodeURIComponent(ICON_SVG)}`,
         // TLD-agnostic @include rules mirroring the original @match coverage,
         // so the script works on amazon.com, .co.uk, .de, .ca, etc. (@match
         // cannot wildcard the TLD; regex @include can). Passing RegExp values

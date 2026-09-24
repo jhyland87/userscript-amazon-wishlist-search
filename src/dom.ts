@@ -55,6 +55,37 @@ export const isListOpen = (): boolean => {
 };
 
 /**
+ * Whether `node` is rendered, checking it and each ancestor up to `root`.
+ */
+const isShownWithin = (node: HTMLElement, root: HTMLElement): boolean => {
+  for (let current: HTMLElement | null = node; current; current = current.parentElement) {
+    const style = getComputedStyle(current);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    if (current === root) return true;
+  }
+  return true;
+};
+
+/**
+ * Whether Amazon is still paging more lists into the popover, judged by a
+ * visible spinner inside it.
+ *
+ * @returns `true` while a loading spinner is showing in the popover.
+ * @example
+ * isListLoading(); // true — more lists are on the way
+ * @category DOM
+ * @group Queries
+ * @source src/dom.ts
+ */
+export const isListLoading = (): boolean => {
+  const popover = getPopover();
+  if (!popover) return false;
+  return Array.from(
+    popover.querySelectorAll<HTMLElement>(SELECTORS.loadingIndicator),
+  ).some((spinner) => isShownWithin(spinner, popover));
+};
+
+/**
  * Create an element, set its properties and listeners, and append children —
  * the one-call replacement for `createElement` + assignments + `appendChild`.
  *

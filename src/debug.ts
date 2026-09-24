@@ -7,6 +7,7 @@ import {
   getPopover,
   getPopoverInner,
   getSearchInput,
+  isListLoading,
   isListOpen,
 } from './dom';
 import { log } from './log';
@@ -39,6 +40,9 @@ export const debugSnapshot = (): Record<string, unknown> => {
     popoverInnerFound: !!getPopoverInner(),
     listUlFound: !!getListUl(),
     listItemCount: getListItems().length,
+    // Whether Amazon's spinner is showing — a search waits on it before
+    // reporting "0 results".
+    listLoading: isListLoading(),
     searchInputPresent: !!getSearchInput(),
     // What the running search (if any) last did — see `search.ts`.
     search: getSearchDebugState(),

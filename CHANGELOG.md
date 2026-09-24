@@ -12,10 +12,20 @@ someone using the script, one line per change, grouped under **Added** /
 
 ## [Unreleased]
 
+### Changed
+
+- New script icon: a magnifying glass over an orange smile arrow. It follows
+  your browser's theme, with a dark lens on light themes and a white lens on
+  dark ones.
+
 ### Fixed
 
 - Clearing a search (emptying the box or pressing Esc) now removes the bold
   underline from the names that had matched.
+- Searching for a list Amazon hasn't loaded yet no longer flashes
+  "0 results" in red. While Amazon is still loading more lists the notice reads
+  "Searching for …", and "0 results" appears only once the whole list has
+  loaded without a match.
 
 ## [0.5.0] - 2026-09-23
 
