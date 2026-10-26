@@ -16,15 +16,15 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       ASSET: dist/amazon-wishlist-search.user.js
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -85,8 +85,15 @@ jobs:
           fi
 
       - name: Publish release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: ${{ env.ASSET }}
           body_path: release-notes.md
           generate_release_notes: ${{ steps.notes.outputs.generate }}
+
+      # Download the asset just published and check the notes carry its SHA-256
+      # (test/release.test.ts). Runs against the live release, not the build.
+      - name: Verify published release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm test:release
