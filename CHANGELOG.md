@@ -12,12 +12,19 @@ someone using the script, one line per change, grouped under **Added** /
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-25
+
 ### Added
 
 - Search now covers every list straight away, including ones Amazon hasn't
   loaded into the popover yet. The script keeps an index of your lists (fetched
   in the background, refreshed daily), so results appear without the
   "Searching…" wait, and you can add to a list before Amazon loads it.
+
+### Changed
+
+- `CONFIG.regexSearches` is now `CONFIG.regexSearchDefault`: a plain on/off for
+  whether the regex toggle starts on.
 
 ### Fixed
 
