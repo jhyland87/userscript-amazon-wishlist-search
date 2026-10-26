@@ -5,16 +5,21 @@ on:
     branches: [main]
   pull_request:
 
+# A new push to a PR replaces its run that's still going; main runs always finish.
+concurrency:
+  group: test-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Reads the pnpm version from the "packageManager" field in package.json.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -27,3 +32,13 @@ jobs:
 
       - name: Typecheck tests
         run: pnpm exec tsc -p tsconfig.test.json --noEmit
+
+      # The built userscript, so a PR can be installed in Tampermonkey and tried
+      # before merging. Uploaded unzipped: the download is the .user.js itself.
+      - name: Upload userscript build
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/amazon-wishlist-search.user.js
+          archive: false
+          retention-days: 14

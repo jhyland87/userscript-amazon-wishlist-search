@@ -1,0 +1,19 @@
+# Weekly update PRs for the workflow actions and the npm dev dependencies, so
+# the action versions don't drift behind runner deprecations again.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev-dependencies:
+        dependency-type: development

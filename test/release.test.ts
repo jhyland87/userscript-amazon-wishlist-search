@@ -29,6 +29,8 @@ const fetchGitHub = async (url: string): Promise<Response> => {
     headers: {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'wishlist-search-release-integrity-test',
+      // CI passes its token, since runners share the anonymous rate limit.
+      ...(process.env.GITHUB_TOKEN && { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }),
     },
   });
   expect(response.ok, `Expected ${url} to return HTTP 2xx, got ${response.status}`).toBe(true);
