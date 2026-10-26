@@ -15,7 +15,6 @@ import { isMultiAddEnabled } from './multi-add-state';
 import {
   getAsin,
   getCsrfToken,
-  getListItemId,
   getMerchantId,
   getSessionId,
   getVendorId,
@@ -53,15 +52,14 @@ export const debugSnapshot = (): Record<string, unknown> => {
     listUlCountGlobal: document.querySelectorAll(SELECTORS.listUl).length,
     listItemCountGlobal: document.querySelectorAll(SELECTORS.listItem).length,
     // Adding in place depends on several page-level values, any of which can
-    // vanish when Amazon reshuffles the product page. `itemIdFound: false` is
-    // specifically why a row would show a ✓ with no undo arrow.
+    // vanish when Amazon reshuffles the product page. Undo needs both
+    // `sessionIdFound` and `merchantIdFound`; without them a ✓ has no undo arrow.
     multiAddEnabled: isMultiAddEnabled(),
     csrfTokenFound: !!getCsrfToken(),
     asinFound: !!getAsin(),
     vendorId: getVendorId(),
     sessionIdFound: !!getSessionId(),
     merchantIdFound: !!getMerchantId(),
-    itemIdFound: !!getListItemId(),
     cachedCsrfToken: !!getCachedCsrfToken(),
   };
 };

@@ -7,18 +7,24 @@ import {
   getAsin,
   getCsrfToken,
   getItemTitle,
-  getListItemId,
   getMerchantId,
   getRowTarget,
   getSessionId,
   getVendorId,
 } from './page-params';
 import { clearRowStatus, getRowStatus, setRowStatus } from './row-status';
+import {
+  getRowListId,
+  isSyntheticRow,
+  removeSyntheticRow,
+  revealRealRow,
+} from './synthetic-rows';
 import type { AddParams, ListTarget, RemoveParams } from './types';
 import { describeOutcome, toRemoveListType } from './wishlist-api';
 import {
   addToList,
   getCachedCsrfToken,
+  lookupListItemId,
   removeFromList,
 } from './wishlist-client';
 
@@ -80,22 +86,46 @@ const collectAddParams = (anchor: Element): AddParams | null => {
 };
 
 /**
- * Gather everything the remove endpoint needs.
+ * The product's ID as lists know it, e.g. `ASIN:B0C6PN5NZ8|ATVPDKIKX0DER`.
+ *
+ * @returns The ID, or `null` if the ASIN or marketplace can't be read.
+ */
+const getItemExternalId = (): string | null => {
+  const asin = getAsin();
+  const merchantId = getMerchantId();
+  return asin && merchantId ? `ASIN:${asin}|${merchantId}` : null;
+};
+
+/**
+ * Whether the page exposes what an undo needs before it looks anything up.
+ * The line-item ID isn't on the page; it's read from the list at undo time.
+ *
+ * @returns `true` when the session and item IDs are readable.
+ */
+const canUndo = (): boolean => getSessionId() !== null && getItemExternalId() !== null;
+
+/**
+ * Gather everything the remove endpoint needs, looking up the line-item ID
+ * the product was given on this list.
  *
  * @param target - The list the row points at.
  * @returns The parameters, or `null` if any required value is unreadable.
  */
-const collectRemoveParams = (target: ListTarget): RemoveParams | null => {
+const collectRemoveParams = async (target: ListTarget): Promise<RemoveParams | null> => {
   const sid = getSessionId();
-  const asin = getAsin();
-  const merchantId = getMerchantId();
-  const itemId = getListItemId();
-  if (!sid || !asin || !merchantId || !itemId) {
+  const itemExternalId = getItemExternalId();
+  if (!sid || !itemExternalId) {
     log.debug('add-interceptor: cannot undo', {
       sid: Boolean(sid),
-      asin: Boolean(asin),
-      merchantId: Boolean(merchantId),
-      itemId: Boolean(itemId),
+      itemExternalId: Boolean(itemExternalId),
+    });
+    return null;
+  }
+  const itemId = await lookupListItemId(target.listExternalId, itemExternalId);
+  if (!itemId) {
+    log.debug('add-interceptor: cannot undo, item not found on the list', {
+      listExternalId: target.listExternalId,
+      itemExternalId,
     });
     return null;
   }
@@ -103,7 +133,7 @@ const collectRemoveParams = (target: ListTarget): RemoveParams | null => {
     sid,
     listExternalId: target.listExternalId,
     itemTitle: getItemTitle() ?? '',
-    itemExternalId: `ASIN:${asin}|${merchantId}`,
+    itemExternalId,
     itemId,
     listType: toRemoveListType(target.listType),
     sort: REMOVE_SORT,
@@ -119,11 +149,41 @@ const collectRemoveParams = (target: ListTarget): RemoveParams | null => {
  * @returns Nothing.
  */
 const fallbackToAmazon = (li: HTMLElement): void => {
+  if (isSyntheticRow(li)) {
+    void addViaRealRow(li);
+    return;
+  }
   const anchor = li.querySelector(SELECTORS.listItemLink);
   if (!(anchor instanceof HTMLElement)) return;
   clearRowStatus(li);
   anchor.dataset.nativeAdd = 'true';
   anchor.click();
+};
+
+/**
+ * Hand a synthetic row's add to Amazon. Amazon has no handlers on our row, so
+ * this waits for it to page in the real one and re-dispatches the click there.
+ *
+ * @param li - The synthetic row.
+ * @returns Nothing; resolves once the click is handed over or given up on.
+ */
+const addViaRealRow = async (li: HTMLElement): Promise<void> => {
+  const listId = getRowListId(li);
+  if (!listId) return;
+  setRowStatus(li, 'pending', 'Waiting for Amazon to load this list…');
+
+  const real = await revealRealRow(listId);
+  if (!real) {
+    log.warn('add-interceptor: the real row never loaded', { listId });
+    if (li.isConnected) {
+      setRowStatus(li, 'failed', "Amazon didn't load this list — click to try again");
+    }
+    return;
+  }
+  // The observer may already have swapped the synthetic row out; either way
+  // only the real row should be left.
+  removeSyntheticRow(listId);
+  fallbackToAmazon(real);
 };
 
 /**
@@ -152,9 +212,9 @@ const runAdd = async (
   const name = outcome.listName ?? rowName;
   if (name) recordSelection(name);
 
-  // Undo needs a line-item ID; without one the check stays inert rather than
-  // offering a button that would fail.
-  const undoable = getListItemId() !== null;
+  // Without a session or item ID the check stays inert rather than offering a
+  // button that would fail.
+  const undoable = canUndo();
   const added = name ? `Added to ${name}` : 'Added';
   setRowStatus(li, 'added', undoable ? `${added} — click to undo` : added, {
     undoable,
@@ -177,14 +237,14 @@ const runUndo = async (li: HTMLElement, anchor: Element): Promise<void> => {
     setRowStatus(li, 'added', title, { undoable: true });
   };
 
+  setRowStatus(li, 'pending', rowName ? `Removing from ${rowName}…` : 'Removing…');
   const target = getRowTarget(anchor);
-  const params = target ? collectRemoveParams(target) : null;
+  const params = target ? await collectRemoveParams(target) : null;
   if (!params) {
     restore('Undo unavailable — open the list to remove this item');
     return;
   }
 
-  setRowStatus(li, 'pending', rowName ? `Removing from ${rowName}…` : 'Removing…');
   const outcome = await removeFromList(params, getCsrfToken);
   if (outcome.kind !== 'success') {
     log.warn('add-interceptor: undo failed', outcome);
@@ -221,9 +281,9 @@ const handleBadgeClick = (event: Event, badge: Element): void => {
   if (state !== 'added') return;
 
   const anchor = li.querySelector(SELECTORS.listItemLink);
-  // Re-checked here as well as at render time, so an item ID that disappears
+  // Re-checked here as well as at render time, so a page value that disappears
   // between the two can't produce a request we already know will fail.
-  if (!anchor || getListItemId() === null) return;
+  if (!anchor || !canUndo()) return;
   void runUndo(li, anchor);
 };
 
@@ -258,10 +318,20 @@ const handleClick = (event: Event): void => {
     return;
   }
 
-  if (!isMultiAddEnabled()) return;
-
   const li = anchor.closest<HTMLElement>(SELECTORS.listItem);
   if (!li) return;
+
+  // Amazon has no handlers on a row we built, so every click on one is ours.
+  const synthetic = isSyntheticRow(li);
+  if (synthetic) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
+  if (!isMultiAddEnabled()) {
+    if (synthetic) void addViaRealRow(li);
+    return;
+  }
 
   const state = getRowStatus(li);
   if (state === 'pending' || state === 'added') {
@@ -273,7 +343,10 @@ const handleClick = (event: Event): void => {
   }
 
   const params = collectAddParams(anchor);
-  if (!params) return;
+  if (!params) {
+    if (synthetic) void addViaRealRow(li);
+    return;
+  }
 
   event.preventDefault();
   event.stopImmediatePropagation();

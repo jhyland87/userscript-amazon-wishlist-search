@@ -16,12 +16,10 @@ const load = async (): Promise<typeof import('../src/regex-state')> => {
 };
 
 describe('regex-state', () => {
-  it('falls back to the CONFIG.regexSearches default when nothing is stored', async () => {
+  it('falls back to CONFIG.regexSearchDefault when nothing is stored', async () => {
     const { isRegexEnabled } = await load();
     const { CONFIG } = await import('../src/config');
-    const expected =
-      CONFIG.regexSearches === true || CONFIG.regexSearches === 'enable';
-    expect(isRegexEnabled()).toBe(expected);
+    expect(isRegexEnabled()).toBe(CONFIG.regexSearchDefault);
   });
 
   it('a stored value supersedes the default', async () => {

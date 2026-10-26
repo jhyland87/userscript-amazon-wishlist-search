@@ -1,7 +1,15 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetGm } from './gm-stub';
-import { addRows, addSpinner, getRow, mountPage, visibleNames } from './popover-fixture';
+import {
+  addRows,
+  addSpinner,
+  getRow,
+  mountPage,
+  seedListIndex,
+  syntheticRows,
+  visibleNames,
+} from './popover-fixture';
 
 const NAMES = ['Books', 'Board Games', 'Tools', 'Garden Tools', 'Gifts'];
 
@@ -244,5 +252,114 @@ describe('while Amazon is still loading lists', () => {
     expect(visibleNames()).toEqual(['Tools', 'Garden Tools']);
     // All matches fit, so the notice is hidden rather than left on "gps".
     expect(resultShown()).toBe(false);
+  });
+});
+
+describe('with a list index', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  /** Mount `names`, then load an index of `indexed` before searching. */
+  const setupIndexed = async (
+    names: string[],
+    indexed: string[],
+    fetchedAt = Date.now(),
+  ): Promise<SearchModule> => {
+    seedListIndex(indexed, { fetchedAt });
+    const search = await setup(names);
+    const { loadListIndex } = await import('../src/wishlist-index');
+    await loadListIndex();
+    return search;
+  };
+
+  it('shows lists Amazon has not paged in yet', async () => {
+    const { searchList } = await setupIndexed(NAMES, [...NAMES, 'GPS Tracker']);
+    searchList('gps');
+    expect(visibleNames()).toEqual(['GPS Tracker']);
+    expect(syntheticRows()).toHaveLength(1);
+    // Highlighted the same way a real row is.
+    expect(syntheticRows()[0]?.querySelector('strong')?.textContent).toBe('GPS');
+  });
+
+  it('does not duplicate a list that is already in the popover', async () => {
+    const { searchList } = await setupIndexed(NAMES, NAMES);
+    searchList('tools');
+    expect(visibleNames()).toEqual(['Tools', 'Garden Tools']);
+    expect(syntheticRows()).toEqual([]);
+  });
+
+  it('reuses its rows across searches instead of piling them up', async () => {
+    const { searchList } = await setupIndexed(NAMES, [...NAMES, 'GPS Tracker']);
+    searchList('gps');
+    const [row] = syntheticRows();
+    searchList('gp');
+    expect(syntheticRows()).toEqual([row]);
+    searchList('books');
+    expect(syntheticRows()).toEqual([]);
+  });
+
+  it('applies the cap across real and indexed lists', async () => {
+    const real = Array.from({ length: 8 }, (_, i) => `Wish ${i + 1}`);
+    const all = Array.from({ length: 12 }, (_, i) => `Wish ${i + 1}`);
+    const { searchList } = await setupIndexed(real, all);
+    searchList('wish');
+    expect(visibleNames()).toEqual(all.slice(0, 10));
+    expect(resultText()).toBe('Showing 10 of 12 matches');
+  });
+
+  it.for([
+    ['fresh', Date.now(), '0 results for <em>gps</em>'],
+    ['expired', Date.now() - 2 * DAY_MS, 'Searching for <em>gps</em>…'],
+  ] as const)(
+    'with an index that is %s, a miss while Amazon loads reads %s',
+    async ([, fetchedAt, text]) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const { searchList } = await setupIndexed(NAMES, NAMES, fetchedAt);
+      addSpinner();
+      searchList('gps');
+      expect(resultText()).toBe(text);
+    },
+  );
+
+  it('swaps in the real row when Amazon pages it in, keeping its badge', async () => {
+    const { searchList, refilterListItems } = await setupIndexed(NAMES, [...NAMES, 'GPS Tracker']);
+    const { setRowStatus } = await import('../src/row-status');
+    searchList('gps');
+    const [synthetic] = syntheticRows();
+    if (!synthetic) throw new Error('no synthetic row');
+    setRowStatus(synthetic, 'added', 'Added to GPS Tracker', { undoable: true });
+
+    addRows(['GPS Tracker']);
+    refilterListItems();
+
+    expect(syntheticRows()).toEqual([]);
+    expect(visibleNames()).toEqual(['GPS Tracker']);
+    expect(getRow('GPS Tracker').dataset.wishlistAdd).toBe('added');
+  });
+
+  it('counts a paged-in match once, not twice', async () => {
+    const { searchList, refilterListItems } = await setupIndexed(
+      NAMES,
+      [...NAMES, ...Array.from({ length: 12 }, (_, i) => `Wish ${i + 1}`)],
+    );
+    searchList('wish');
+    addRows(['Wish 11', 'Wish 12']);
+    refilterListItems();
+    expect(resultText()).toBe('Showing 10 of 12 matches');
+  });
+
+  it('removes its rows when the search is cleared', async () => {
+    const { searchList, showAllListItems } = await setupIndexed(NAMES, [...NAMES, 'GPS Tracker']);
+    searchList('gps');
+    showAllListItems();
+    expect(syntheticRows()).toEqual([]);
+    expect(visibleNames()).toEqual(NAMES);
+  });
+
+  it('marks the index stale when Amazon shows a list it lacks', async () => {
+    const { searchList } = await setupIndexed([...NAMES, 'Brand New'], NAMES);
+    const { isListIndexFresh } = await import('../src/wishlist-index');
+    expect(isListIndexFresh()).toBe(true);
+    searchList('new');
+    expect(isListIndexFresh()).toBe(false);
   });
 });

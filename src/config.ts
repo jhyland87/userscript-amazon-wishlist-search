@@ -10,8 +10,8 @@ export const CONFIG: WishlistSearchConfig = {
   maxSearchResults: 10,
   // Minimum characters typed before a search runs.
   minSearchInput: 0,
-  // Default regex mode; the in-input toggle overrides it (`true`/`'enable'` → on).
-  regexSearches: 'delimiters',
+  // Whether the in-input regex toggle starts on; clicking it overrides this.
+  regexSearchDefault: false,
   // Show the "Previously selected" group by default; the label toggle overrides it.
   enableFrequentLists: true,
   // Number of lists shown in the "Previously selected" group.
@@ -25,6 +25,10 @@ export const CONFIG: WishlistSearchConfig = {
   // Abort an add/remove request after this long, so a hung request can't wedge
   // the serialized queue.
   wishlistRequestTimeoutMs: 10000,
+  // How long the cached index of every list counts as complete. An older
+  // index still feeds search results, but is refetched the next time the
+  // popover opens.
+  listIndexTtlMs: 24 * 60 * 60 * 1000,
   // Used when the page's `wishlistDPState` script can't be read.
   defaultVendorId: 'website.wishlist.detail.add',
   // Default verbose debug logging; `wishlistSearchDebug()` overrides it at runtime.
@@ -39,6 +43,10 @@ export const CONFIG: WishlistSearchConfig = {
  */
 export const ADD_TO_LIST_PATH = '/hz/wishlist/additemtolist';
 export const REMOVE_FROM_LIST_PATH = '/hz/wishlist/removeitem';
+/** A list's own page; its item rows carry the line-item IDs undo needs. */
+export const LIST_VIEW_PATH = '/hz/wishlist/ls/';
+/** Pages of the "Add to List" popover's lists; no token returns the first page. */
+export const LIST_PAGE_PATH = '/hz/wishlist/addtolist/atlpaginate';
 
 /** Centralized GM storage keys, so every persisted value has one home. */
 export const STORAGE_KEYS = {
@@ -54,6 +62,8 @@ export const STORAGE_KEYS = {
   debug: 'wishlist-search:debug',
   /** Runtime on/off flag for adding in place instead of via Amazon's modal. */
   multiAddEnabled: 'wishlist-search:multi-add-enabled',
+  /** Cached index of every list, keyed by Amazon host (see `wishlist-index.ts`). */
+  listIndex: 'wishlist-search:list-index',
 } as const;
 
 /**
@@ -80,6 +90,8 @@ export const SELECTORS = {
   listItem: 'li.a-dropdown-item',
   /** The list-name span inside a row (used to read the wishlist title). */
   listItemName: '[id^="atwl-list-name-"]',
+  /** The "Private"/"Public"/"Shared" label under a row's name. */
+  listItemPrivacy: '[id^="atwl-list-privacy-"]',
   /** The clickable anchor inside a row; its id suffix is the list's external ID. */
   listItemLink: 'a.a-dropdown-link[id^="atwl-link-to-list-"]',
   /** The declarative span inside that anchor; carries the list's JSON payload. */
@@ -138,8 +150,6 @@ export const PAGE_SELECTORS = {
   productState: 'script[data-a-state*="turbo-checkout-product-state"]',
   /** Fallback for the product title. */
   productTitle: '#productTitle',
-  /** The wishlist line-item ID; without it we can't offer undo. */
-  listItemId: '#sourceCustomerOrgListItemID',
 } as const;
 
 /** Marker attribute recording which popover we've already injected into. */

@@ -1,18 +1,23 @@
 import { describe, expect, it } from 'vitest';
 
 import { readFixture } from './fixtures';
+import type { Outcome } from '../src/types';
 import {
   buildAddBody,
+  buildListPagePath,
+  buildListViewPath,
   buildRemoveBody,
   classifyAddResponse,
   classifyRemoveResponse,
   describeOutcome,
   extractAddedListName,
   extractCsrfToken,
+  findListItemId,
   listIdFromAnchorId,
   parseListTarget,
   parseProductTitle,
   parseStateField,
+  readListPage,
   toRemoveListType,
   type ResponseInput,
 } from '../src/wishlist-api';
@@ -83,11 +88,13 @@ describe('request bodies', () => {
     expect(body).not.toContain('itemId');
   });
 
-  it('toRemoveListType fixes the casing the remove endpoint expects', () => {
-    expect(toRemoveListType('wishlist')).toBe('WishList');
-    expect(toRemoveListType('WishList')).toBe('WishList');
-    // Anything unrecognized passes through rather than being mangled.
-    expect(toRemoveListType('Registry')).toBe('Registry');
+  // Anything unrecognized passes through rather than being mangled.
+  it.for([
+    ['wishlist', 'WishList'],
+    ['WishList', 'WishList'],
+    ['Registry', 'Registry'],
+  ])('toRemoveListType(%s) is %s, the casing the remove endpoint expects', ([input, expected]) => {
+    expect(toRemoveListType(input)).toBe(expected);
   });
 });
 
@@ -101,36 +108,40 @@ describe('page value parsing', () => {
     ).toEqual({ listExternalId: 'AP4XJQR1ZOMM', listType: 'wishlist' });
   });
 
-  it('parseListTarget rejects anything malformed', () => {
-    expect(parseListTarget(undefined)).toBeNull();
-    expect(parseListTarget('')).toBeNull();
-    expect(parseListTarget('not json')).toBeNull();
-    expect(parseListTarget('{}')).toBeNull();
-    expect(parseListTarget('{"listExternalId":123,"listType":"wishlist"}')).toBeNull();
-    expect(parseListTarget('{"listExternalId":"","listType":"wishlist"}')).toBeNull();
+  it.for([
+    undefined,
+    '',
+    'not json',
+    '{}',
+    '{"listExternalId":123,"listType":"wishlist"}',
+    '{"listExternalId":"","listType":"wishlist"}',
+  ])('parseListTarget rejects the malformed payload %j', (raw) => {
+    expect(parseListTarget(raw)).toBeNull();
   });
 
-  it('listIdFromAnchorId recovers the list ID from an anchor', () => {
-    expect(listIdFromAnchorId('atwl-link-to-list-AP4XJQR1ZOMM')).toBe('AP4XJQR1ZOMM');
-    expect(listIdFromAnchorId('atwl-link-to-list-')).toBeNull();
-    expect(listIdFromAnchorId('wishlist-search')).toBeNull();
+  it.for([
+    ['atwl-link-to-list-AP4XJQR1ZOMM', 'AP4XJQR1ZOMM'],
+    ['atwl-link-to-list-', null],
+    ['wishlist-search', null],
+  ] as const)('listIdFromAnchorId(%s) is %s', ([anchorId, expected]) => {
+    expect(listIdFromAnchorId(anchorId)).toBe(expected);
   });
 
-  it('parseStateField reads the vendor ID out of an a-state blob', () => {
-    expect(
-      parseStateField('{"vendorId":"website.wishlist.detail.add"}', 'vendorId'),
-    ).toBe('website.wishlist.detail.add');
-    expect(parseStateField('{"vendorId":""}', 'vendorId')).toBeNull();
-    expect(parseStateField('{}', 'vendorId')).toBeNull();
-    expect(parseStateField('broken', 'vendorId')).toBeNull();
+  it.for([
+    ['{"vendorId":"website.wishlist.detail.add"}', 'website.wishlist.detail.add'],
+    ['{"vendorId":""}', null],
+    ['{}', null],
+    ['broken', null],
+  ] as const)('parseStateField reads vendorId out of %s as %s', ([raw, expected]) => {
+    expect(parseStateField(raw, 'vendorId')).toBe(expected);
   });
 
-  it('parseProductTitle reads the turbo-checkout product state', () => {
-    expect(
-      parseProductTitle('{"lineItemInputs":[{"productTitle":"Lab Vibrator"}]}'),
-    ).toBe('Lab Vibrator');
-    expect(parseProductTitle('{"lineItemInputs":[]}')).toBeNull();
-    expect(parseProductTitle('{}')).toBeNull();
+  it.for([
+    ['{"lineItemInputs":[{"productTitle":"Lab Vibrator"}]}', 'Lab Vibrator'],
+    ['{"lineItemInputs":[]}', null],
+    ['{}', null],
+  ] as const)('parseProductTitle reads %s as %s', ([raw, expected]) => {
+    expect(parseProductTitle(raw)).toBe(expected);
   });
 });
 
@@ -195,12 +206,9 @@ describe('classifyAddResponse', () => {
     ).toEqual({ kind: 'signed-out' });
   });
 
-  it('treats 400 and 403 as a token problem so the client can retry', () => {
+  it.for([400, 403])('treats %i as a token problem so the client can retry', (status) => {
     expect(
-      classifyAddResponse({ ok: false, status: 403, redirectedTo: null, body: '' }),
-    ).toEqual({ kind: 'csrf' });
-    expect(
-      classifyAddResponse({ ok: false, status: 400, redirectedTo: null, body: '' }),
+      classifyAddResponse({ ok: false, status, redirectedTo: null, body: '' }),
     ).toEqual({ kind: 'csrf' });
   });
 
@@ -253,16 +261,71 @@ describe('describeOutcome', () => {
     );
   });
 
-  it('offers the Amazon fallback on every failure', () => {
-    const failures = [
-      { kind: 'signed-out' },
-      { kind: 'csrf' },
-      { kind: 'http', status: 503 },
-      { kind: 'network', message: 'timed out' },
-      { kind: 'unrecognized' },
-    ] as const;
-    for (const outcome of failures) {
-      expect(describeOutcome(outcome)).toContain('click to add via Amazon');
-    }
+  it.for([
+    { kind: 'signed-out' },
+    { kind: 'csrf' },
+    { kind: 'http', status: 503 },
+    { kind: 'network', message: 'timed out' },
+    { kind: 'unrecognized' },
+  ] satisfies Outcome[])('offers the Amazon fallback for a $kind failure', (outcome) => {
+    expect(describeOutcome(outcome)).toContain('click to add via Amazon');
+  });
+});
+
+describe('list pages', () => {
+  it('asks for the first page with no parameters', () => {
+    expect(buildListPagePath('', 0)).toBe('/hz/wishlist/addtolist/atlpaginate');
+  });
+
+  it('sends what Amazon sends for later pages, with the token encoded', () => {
+    expect(buildListPagePath('ESHV2_a+b=', 25)).toBe(
+      '/hz/wishlist/addtolist/atlpaginate?paginationToken=ESHV2_a%2Bb%3D&listsRenderedSoFar=25&isMobile=false',
+    );
+  });
+
+  it.for([
+    ['atlpaginate-first.json', 'FIXTURE-TOKEN-1'],
+    ['atlpaginate-middle.json', 'FIXTURE-TOKEN-2'],
+    ['atlpaginate-last.json', ''],
+  ])('reads the rows and next token from %s', ([fixture, token]) => {
+    const page = readListPage(ok(readFixture(fixture)));
+    expect(page?.nextToken).toBe(token);
+    expect(page?.content).toContain('atwl-link-to-list-FIXTURELIST');
+  });
+
+  it.for([
+    ['Amazon flags an error', ok('{"content":"","paginationToken":"","hasError":true}')],
+    ['the body is not JSON', ok('<html></html>')],
+    ['content is missing', ok('{"paginationToken":"","hasError":false}')],
+    ['the request failed', { ok: false, status: 500, redirectedTo: null, body: '{}' }],
+    ['it was bounced to sign-in', { ...ok('{}'), redirectedTo: 'https://www.amazon.com/ap/signin' }],
+  ] satisfies Array<[string, ResponseInput]>)('returns null when %s', ([, input]) => {
+    expect(readListPage(input)).toBeNull();
+  });
+});
+
+describe('list item lookup', () => {
+  const listView = readFixture('list-view.html');
+
+  it('reads a list newest first', () => {
+    expect(buildListViewPath('16N7NU7YLAZSR')).toBe('/hz/wishlist/ls/16N7NU7YLAZSR?sort=date-added');
+  });
+
+  it.for([
+    ['the newest item', 'ASIN:B0FIXTURE1|ATVPDKIKX0DER', 'I1NEWESTITEM00'],
+    ['an older item', 'ASIN:B0FIXTURE2|ATVPDKIKX0DER', 'I2OLDERITEM000'],
+    ['the same ASIN from another marketplace', 'ASIN:B0FIXTURE3|ATVPDKIKX0DER', 'I3OTHERMKT0000'],
+    ['a product not on the list', 'ASIN:B0NOTLISTED|ATVPDKIKX0DER', null],
+  ] as const)('finds the line-item ID of %s', ([, itemExternalId, expected]) => {
+    expect(findListItemId(listView, itemExternalId)).toBe(expected);
+  });
+
+  it('prefers the exact marketplace over a same-ASIN row listed first', () => {
+    const otherFirst = listView.replace('ASIN:B0FIXTURE2|ATVPDKIKX0DER', 'ASIN:B0FIXTURE1|A1OTHERMARKET');
+    expect(findListItemId(otherFirst, 'ASIN:B0FIXTURE1|ATVPDKIKX0DER')).toBe('I1NEWESTITEM00');
+  });
+
+  it('returns null for a page with no item rows', () => {
+    expect(findListItemId('<html>sign in</html>', 'ASIN:B0FIXTURE1|ATVPDKIKX0DER')).toBeNull();
   });
 });

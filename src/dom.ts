@@ -1,4 +1,4 @@
-import { GM_addElement } from 'vite-plugin-monkey/dist/client';
+import { GM } from 'vite-plugin-monkey/dist/client';
 import { SELECTORS } from './config';
 import { normalizeName } from './name-match';
 import type { ElementProps } from './types';
@@ -86,12 +86,39 @@ export const isListLoading = (): boolean => {
 };
 
 /**
+ * The nearest ancestor of `start` that actually scrolls, searched no further
+ * than the popover itself, so scrolling it never scrolls the page.
+ *
+ * @param start - The element whose scroll container to find.
+ * @returns The scrolling ancestor, or `null` if none inside the popover scrolls.
+ * @example
+ * findScrollParent(getListUl()); // the popover's scrolling content <div>
+ * @category DOM
+ * @group Queries
+ * @source src/dom.ts
+ */
+export const findScrollParent = (start: HTMLElement): HTMLElement | null => {
+  const popover = getPopover();
+  let node = start.parentElement;
+  while (node) {
+    const { overflowY } = getComputedStyle(node);
+    const scrolls = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
+    if (scrolls && node.scrollHeight > node.clientHeight) return node;
+    if (node === popover) return null;
+    node = node.parentElement;
+  }
+  return null;
+};
+
+/**
  * Create an element, set its properties and listeners, and append children —
  * the one-call replacement for `createElement` + assignments + `appendChild`.
  *
- * Created with `GM_addElement`, which sets the id, class, title and `attrs`.
+ * Created with `GM.addElement`, which sets the id, class, title and `attrs`.
  * It's given a detached fragment as its parent, since with no parent the
  * manager would append to the live page before the caller positions it.
+ * Tampermonkey and Violentmonkey both return the element synchronously; the
+ * Promise the API's type allows for is rejected loudly rather than awaited.
  *
  * @param tag - The tag to create.
  * @param props - Id, class, text, attributes, styles and listeners to set.
@@ -109,13 +136,16 @@ export const el = <K extends keyof HTMLElementTagNameMap>(
   props: ElementProps = {},
   ...children: Array<Node | string>
 ): HTMLElementTagNameMap[K] => {
-  const node = GM_addElement(document.createDocumentFragment(), tag, {
+  const node = GM.addElement(document.createDocumentFragment(), tag, {
     ...(props.id !== undefined && { id: props.id }),
     ...(props.className !== undefined && { class: props.className }),
     ...(props.title !== undefined && { title: props.title }),
     ...props.attrs,
   });
-  // Text, styles and listeners stay plain DOM calls: GM_addElement only takes
+  if (node instanceof Promise) {
+    throw new Error(`GM.addElement returned a Promise for <${tag}>; expected an element`);
+  }
+  // Text, styles and listeners stay plain DOM calls: GM.addElement only takes
   // attributes, and `textContent` support there differs between managers.
   if (props.text !== undefined) node.textContent = props.text;
   if (props.style) Object.assign(node.style, props.style);

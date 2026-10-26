@@ -2,13 +2,14 @@
 // (run under happy-dom). The markup mirrors only what `SELECTORS` and
 // `PAGE_SELECTORS` in src/config.ts look for.
 
+import { gmStore } from './gm-stub';
+
 export interface PageOptions {
   /** Whether the popover is visible (`aria-hidden="false"`). */
   open?: boolean;
   /** Page inputs to include; each defaults to present. */
   asin?: string | null;
   csrfToken?: string | null;
-  listItemId?: string | null;
 }
 
 /** The list id a fixture row gets: its name, stripped to letters and digits. */
@@ -47,14 +48,12 @@ const input = (id: string, value: string | null | undefined): string =>
  * contains `names`.
  */
 export const mountPage = (names: string[], options: PageOptions = {}): void => {
-  const { open = true, asin = 'B0TESTASIN', csrfToken = 'token-1', listItemId = 'ITEM123' } =
-    options;
+  const { open = true, asin = 'B0TESTASIN', csrfToken = 'token-1' } = options;
   // A fresh <body> detaches any MutationObserver an earlier test started.
   document.body.replaceWith(document.createElement('body'));
   document.body.innerHTML = `
     ${input('ASIN', asin)}
     ${input('lists-sp-csrf-form-token', csrfToken)}
-    ${input('sourceCustomerOrgListItemID', listItemId)}
     <span id="productTitle">Test Product</span>
     <button id="add-to-wishlist-button">Add to List</button>
     <div class="a-popover a-popover-no-header a-arrow-bottom" aria-hidden="${!open}">
@@ -122,3 +121,36 @@ export const visibleNames = (): string[] =>
 export const flush = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 0));
 };
+
+export interface IndexOptions {
+  /** When the index was fetched; defaults to now (fresh). */
+  fetchedAt?: number;
+  /** The account the index belongs to. */
+  customerId?: string | null;
+  /** List type given to every entry. */
+  listType?: string;
+}
+
+/**
+ * Store a list index for the current host, holding `names` in order. Load it
+ * with `loadListIndex()` from `src/wishlist-index`.
+ */
+export const seedListIndex = (names: string[], options: IndexOptions = {}): void => {
+  const { fetchedAt = Date.now(), customerId = null, listType = 'wishlist' } = options;
+  gmStore.set('wishlist-search:list-index', {
+    [location.host]: {
+      fetchedAt,
+      customerId,
+      lists: names.map((name) => ({
+        listExternalId: listIdFor(name),
+        listType,
+        name,
+        privacy: 'Private',
+      })),
+    },
+  });
+};
+
+/** Rows we built from the index, as opposed to ones Amazon rendered. */
+export const syntheticRows = (): HTMLElement[] =>
+  Array.from(document.querySelectorAll<HTMLElement>('li[data-wishlist-synthetic="true"]'));

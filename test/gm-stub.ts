@@ -73,6 +73,18 @@ export const GM = {
     return list.length;
   },
   addStyle: (css: string): unknown => ({ textContent: css }),
+  // Synchronous, like Tampermonkey and Violentmonkey: create, set attributes,
+  // append to the parent.
+  addElement: <K extends keyof HTMLElementTagNameMap>(
+    parent: Node,
+    tag: K,
+    attributes: Record<string, string> = {},
+  ): HTMLElementTagNameMap[K] => {
+    const node = document.createElement(tag);
+    for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+    parent.appendChild(node);
+    return node;
+  },
   // Like Tampermonkey: registering an existing id replaces that entry.
   registerMenuCommand: async (
     caption: string,
@@ -86,18 +98,6 @@ export const GM = {
   unregisterMenuCommand: (id: string | number): void => {
     fake.menu.delete(id);
   },
-};
-
-/** Minimal `GM_addElement`: create, set attributes, append to the parent. */
-export const GM_addElement = <K extends keyof HTMLElementTagNameMap>(
-  parent: Node,
-  tag: K,
-  attributes: Record<string, string> = {},
-): HTMLElementTagNameMap[K] => {
-  const node = document.createElement(tag);
-  for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
-  parent.appendChild(node);
-  return node;
 };
 
 export const unsafeWindow = fake.unsafeWindow as unknown as Window;

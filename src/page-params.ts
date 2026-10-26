@@ -117,21 +117,6 @@ export const getItemTitle = (): string | null =>
   readText(PAGE_SELECTORS.productTitle);
 
 /**
- * The wishlist line-item ID for the current product.
- *
- * This is the one parameter with no fallback, and the remove endpoint is built
- * around it — so when it's missing we hide the undo affordance rather than
- * offer a button we know will fail.
- *
- * @returns The item ID, or `null` if the page doesn't expose one.
- * @example
- * getListItemId(); // 'I1R2KHG1Z40Z6C'
- * @source src/page-params.ts
- */
-export const getListItemId = (): string | null =>
-  readInputValue(PAGE_SELECTORS.listItemId);
-
-/**
  * Which list a popover row points at.
  *
  * Prefers the row's declarative JSON payload, which carries the list type as

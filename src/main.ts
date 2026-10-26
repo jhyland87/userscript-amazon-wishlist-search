@@ -8,6 +8,7 @@ import { installMultiAddHelper, loadMultiAddState } from './multi-add-state';
 import { startObserver } from './observer';
 import { loadRegexState } from './regex-state';
 import { migrateLegacyStorage } from './storage';
+import { loadListIndex } from './wishlist-index';
 
 /**
  * Amazon Wishlist Search — entry point.
@@ -27,6 +28,7 @@ const main = async (): Promise<void> => {
     loadFrequentState(),
     loadMultiAddState(),
     loadFrequencyState(),
+    loadListIndex(),
   ]);
   installDebugControls();
   log.debug('loaded userscript');

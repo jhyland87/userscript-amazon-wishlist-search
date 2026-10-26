@@ -40,7 +40,7 @@ describe.skipIf(!ENABLED)('latest GitHub release integrity', () => {
     const release = (await (await fetchGitHub(RELEASE_API_URL)).json()) as Release;
 
     const asset = release.assets?.find((item) => item.name === ASSET_NAME);
-    expect(asset, `Expected latest release to include ${ASSET_NAME}`).toBeTruthy();
+    expect(asset, `Expected latest release to include ${ASSET_NAME}`).toBeDefined();
 
     const assetResponse = await fetchGitHub(asset!.browser_download_url);
     const assetBuffer = Buffer.from(await assetResponse.arrayBuffer());

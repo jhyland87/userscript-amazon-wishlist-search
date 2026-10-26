@@ -225,3 +225,65 @@ describe('serialization', () => {
     expect(second).toEqual({ kind: 'success', listName: 'Tools' });
   });
 });
+
+describe('fetchListPage', () => {
+  it('GETs an origin-relative page with no anti-CSRF token', async () => {
+    const fetchMock = vi.fn(async (_url: string) => response('{}'));
+    vi.stubGlobal('fetch', fetchMock);
+    const { fetchListPage } = await loadClient();
+
+    await fetchListPage('', 0);
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/hz/wishlist/addtolist/atlpaginate');
+    const init = initOf(fetchMock, 0);
+    expect(init.method).toBe('GET');
+    expect(init.credentials).toBe('include');
+    expect(init.headers).toEqual({ accept: '*/*', 'x-requested-with': 'XMLHttpRequest' });
+  });
+
+  it('runs on its own queue, so an index page in flight never holds up an add', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      // The index page never settles.
+      if (url.includes('atlpaginate')) return new Promise(() => {});
+      return response(addSuccess);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { addToList, fetchListPage } = await loadClient();
+
+    void fetchListPage('', 0);
+    expect(await addToList(ADD_PARAMS, readPageToken)).toEqual({
+      kind: 'success',
+      listName: 'Tools',
+    });
+  });
+});
+
+describe('lookupListItemId', () => {
+  const listView = readFixture('list-view.html');
+
+  it("GETs the list's page and reads the item's line-item ID", async () => {
+    const fetchMock = vi.fn(async (_url: string) => response(listView));
+    vi.stubGlobal('fetch', fetchMock);
+    const { lookupListItemId } = await loadClient();
+
+    expect(await lookupListItemId('1FIXTURELIST1', 'ASIN:B0FIXTURE2|ATVPDKIKX0DER')).toBe(
+      'I2OLDERITEM000',
+    );
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/hz/wishlist/ls/1FIXTURELIST1?sort=date-added');
+    expect(initOf(fetchMock, 0).method).toBe('GET');
+  });
+
+  it.for([
+    ['the page fails', async () => response(listView, { ok: false, status: 500 })],
+    [
+      'the network is down',
+      async () => {
+        throw new Error('offline');
+      },
+    ],
+  ] as const)('returns null when %s', async ([, failure]) => {
+    vi.stubGlobal('fetch', vi.fn(failure));
+    const { lookupListItemId } = await loadClient();
+    expect(await lookupListItemId('1FIXTURELIST1', 'ASIN:B0FIXTURE1|ATVPDKIKX0DER')).toBeNull();
+  });
+});

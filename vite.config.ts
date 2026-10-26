@@ -57,7 +57,7 @@ export default defineConfig(({ command }) => ({
           'GM.listValues',
           'GM.registerMenuCommand',
           'GM.addValueChangeListener',
-          'GM_addElement',
+          'GM.addElement',
           'unsafeWindow',
         ],
         homepage: 'https://github.com/jhyland87/userscript-amazon-wishlist-search',

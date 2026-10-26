@@ -153,7 +153,9 @@ src/
   frequent-state.ts   Runtime on/off toggle for the group (persisted)
   add-interceptor.ts  Captures row clicks so items are added in place
   wishlist-api.ts     Request bodies and response classification (no DOM)
-  wishlist-client.ts  fetch, request queue, CSRF token rotation, timeouts
+  wishlist-client.ts  fetch, request queues, CSRF token rotation, timeouts
+  wishlist-index.ts   Cached index of every list, so search sees unloaded ones
+  synthetic-rows.ts   Rows for indexed lists Amazon hasn't paged in yet
   page-params.ts      Reads ASIN / token / session values off the product page
   row-status.ts       The per-row ✓ / ⚠ / spinner badge
   multi-add-state.ts  Runtime on/off toggle for adding in place (persisted)
@@ -169,6 +171,7 @@ src/
 test/
   wishlist-api.test.ts    Request bodies + response classification
   wishlist-client.test.ts fetch wiring, token rotation, retry, queueing
+  wishlist-index.test.ts  List-index parsing, pagination, caching and freshness
   *-state.test.ts         Persisted feature toggles
   regex.test.ts           Pattern parsing
   name-match.test.ts      Name normalization + match offsets
@@ -188,6 +191,29 @@ Values are kept in the userscript manager's storage (`GM.getValue`/`GM.setValue`
 so they're shared across Amazon domains and stay in sync between open tabs. When the frequent-lists group is enabled, a `window.clearWishlistHistory()`
 helper is exposed in the console to reset it.
 
+### Searching lists that haven't loaded yet
+
+Amazon loads the popover 25 lists at a time, so with a couple of hundred lists
+the last ones take several seconds to arrive. To search them all straight away,
+the script keeps an index of every list:
+
+- The first time the popover opens, the script fetches every page of lists in
+  the background (the same requests Amazon's popover makes) and saves the
+  result in the userscript manager's storage, per Amazon domain.
+- A search matches against that index too. A list Amazon hasn't loaded yet
+  shows up as a normal row, and clicking it adds the item the same way. If that
+  add fails, the ⚠ hands it to Amazon: the script waits for Amazon to load the
+  real row and clicks that.
+- While the index is fresh, "0 results" and "Showing N of M" appear
+  immediately instead of after "Searching…".
+- The index is fetched again when it's more than a day old
+  (`CONFIG.listIndexTtlMs`), or when Amazon shows a list the index doesn't
+  have. A stale index is still searched; only the "Searching…" wait comes back.
+  If the fetch fails, search works the way it did before.
+
+`wishlistSearchDebug()` reports the index's size, age and freshness under
+`search.listIndex`.
+
 ### Adding to several lists at once
 
 Normally, picking a list hands you off to Amazon: a confirmation modal opens and
@@ -197,9 +223,11 @@ three times. Instead, the click is intercepted and the item is added directly:
 - The row shows a spinner, then a green **✓** — and the popover stays open, so
   you can immediately pick another list.
 - Hover a ✓ to turn it into an **↩**; clicking that takes the item back off that
-  list. (The undo needs a line-item ID from the page. If the page doesn't expose
-  one, the ✓ stays put with no undo arrow rather than offering a button that
-  would fail — `wishlistSearchDebug()` reports this as `itemIdFound: false`.)
+  list. The undo looks up the item's entry on that list's page first, since
+  Amazon gives each list its own ID for the item. If the page lacks Amazon's
+  session or marketplace ID, the ✓ stays put with no undo arrow rather than
+  offering a button that would fail (`wishlistSearchDebug()` reports
+  `sessionIdFound` / `merchantIdFound`).
 - If a request fails, the row shows a **⚠** instead. Clicking it hands the add
   back to Amazon's own flow, so there's always a way through. Hover it for the
   reason.
@@ -257,7 +285,7 @@ A small icon inside the right edge of the search box toggles regex mode
   form is honoured too, and an incomplete pattern falls back to a literal match
   while you type.
 
-`CONFIG.regexSearches` sets the default mode.
+`CONFIG.regexSearchDefault` sets whether the toggle starts on.
 
 ### Debug logging
 

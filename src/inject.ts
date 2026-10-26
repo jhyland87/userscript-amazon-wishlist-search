@@ -2,6 +2,7 @@ import { attachAddInterceptor } from './add-interceptor';
 import { CONFIG, INJECTED_ATTR, SELECTORS } from './config';
 import {
   el,
+  findScrollParent,
   getListUl,
   getPopover,
   getSearchInput,
@@ -20,23 +21,6 @@ import { resetSearchInput, restoreActiveSearch, searchTrigger } from './search';
 import { injectStylesheet } from './styles';
 
 /**
- * The nearest ancestor that actually scrolls, searched no further than the
- * popover itself — repositioning the field must never scroll the page.
- */
-const findScroller = (start: HTMLElement): HTMLElement | null => {
-  const popover = getPopover();
-  let node = start.parentElement;
-  while (node) {
-    const { overflowY } = getComputedStyle(node);
-    const scrolls = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
-    if (scrolls && node.scrollHeight > node.clientHeight) return node;
-    if (node === popover) return null;
-    node = node.parentElement;
-  }
-  return null;
-};
-
-/**
  * Park the search field at the top of whatever container scrolls it.
  *
  * With the "Previously selected" group expanded above it, the field can start
@@ -47,7 +31,7 @@ const findScroller = (start: HTMLElement): HTMLElement | null => {
 const scrollSearchToTop = (): void => {
   const wrap = getSearchWrap();
   if (!wrap) return;
-  const scroller = findScroller(wrap);
+  const scroller = findScrollParent(wrap);
   if (!scroller) return;
   const offset =
     wrap.getBoundingClientRect().top - scroller.getBoundingClientRect().top;

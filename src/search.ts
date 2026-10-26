@@ -15,6 +15,22 @@ import { findNameMatch, normalizeName } from './name-match';
 import { compileRegex, getRegexpPattern, str2regex } from './regex';
 import { isRegexEnabled } from './regex-state';
 import { hideSearchResultTxt, updateSearchResultTxt } from './result-count';
+import { getRowStatus } from './row-status';
+import {
+  buildSyntheticRow,
+  getRowListId,
+  getSyntheticRows,
+  insertSyntheticRow,
+  isSyntheticRow,
+  reconcileSyntheticRows,
+  removeIdleSyntheticRows,
+} from './synthetic-rows';
+import {
+  getIndexedLists,
+  getListIndexDebugState,
+  isListIndexFresh,
+  markListIndexStale,
+} from './wishlist-index';
 
 /**
  * The search currently applied to the popover.
@@ -35,6 +51,11 @@ interface SearchState {
   /** Rows with no name span — Amazon's own footer rows, left untouched. */
   skippedCount: number;
   /**
+   * Whether the list index fed this search. Its matches are counted up front,
+   * so rows Amazon pages in later can't be tallied incrementally.
+   */
+  usedIndex: boolean;
+  /**
    * Matching names in row order, so the debug summary can name what matched
    * and what the cap held back. Only filled while debug logging is on.
    */
@@ -49,6 +70,7 @@ const newState = (term: string, pattern: RegExp | null): SearchState => ({
   shownCount: 0,
   scannedCount: 0,
   skippedCount: 0,
+  usedIndex: false,
   matchedNames: [],
 });
 
@@ -112,7 +134,8 @@ export const showAllListItems = (): void => {
       : `restoring ${items.length} row(s)`,
   );
   state = null;
-  for (const item of items) {
+  removeIdleSyntheticRows();
+  for (const item of getListItems()) {
     item.style.display = 'block';
     const nameSpan = getListItemNameSpan(item);
     if (nameSpan) clearHighlight(nameSpan, normalizeName(nameSpan.textContent ?? ''));
@@ -194,6 +217,62 @@ const applyToItem = (active: SearchState, item: HTMLElement): void => {
   active.shownCount++;
   applyHighlight(nameSpan, name, match);
   item.style.display = 'block';
+};
+
+/** A synthetic row with no badge is rebuilt (or dropped) by each search pass. */
+const isIdleSynthetic = (item: HTMLElement): boolean =>
+  isSyntheticRow(item) && getRowStatus(item) === null;
+
+/**
+ * Extend the search to indexed lists Amazon hasn't paged in yet: count every
+ * match, and show the ones under the cap as synthetic rows.
+ *
+ * @param active - The running search.
+ * @param idle - Synthetic rows left from the last pass, reused where they still match.
+ */
+const applyToIndex = (active: SearchState, idle: Map<string, HTMLElement>): void => {
+  const lists = getIndexedLists();
+  active.usedIndex = lists.length > 0;
+  if (!active.usedIndex) return;
+
+  const present = new Set<string>();
+  for (const item of getListItems()) {
+    if (isIdleSynthetic(item)) continue;
+    const listId = getRowListId(item);
+    if (listId) present.add(listId);
+  }
+
+  for (const list of lists) {
+    if (present.has(list.listExternalId)) continue;
+    const match = findNameMatch(list.name, active.pattern, active.term);
+    if (!match) continue;
+
+    active.matchCount++;
+    if (isDebugEnabled()) active.matchedNames.push(list.name);
+    const overLimit =
+      typeof CONFIG.maxSearchResults === 'number' &&
+      active.shownCount >= CONFIG.maxSearchResults;
+    if (overLimit) continue;
+
+    const row = idle.get(list.listExternalId) ?? buildSyntheticRow(list);
+    idle.delete(list.listExternalId);
+    if (!row.isConnected) insertSyntheticRow(row);
+    const nameSpan = getListItemNameSpan(row);
+    if (nameSpan) applyHighlight(nameSpan, list.name, match);
+    row.style.display = 'block';
+    appliedTerm.set(row, active.term);
+    active.shownCount++;
+  }
+
+  // A list Amazon shows that the index lacks means the index is out of date.
+  if (!isListIndexFresh()) return;
+  const indexed = new Set(lists.map((list) => list.listExternalId));
+  for (const listId of present) {
+    if (!indexed.has(listId)) {
+      markListIndexStale();
+      return;
+    }
+  }
 };
 
 /** How the tallies read after a pass, e.g. "28 matched, 10 shown, 18 capped". */
@@ -291,8 +370,10 @@ const renderResultCount = (
   const input = getSearchInput();
   if (!input) return;
 
+  // A fresh index already holds every list, so there's nothing to wait for.
   if (
     active.matchCount === 0 &&
+    !isListIndexFresh() &&
     isListLoading() &&
     Date.now() - waitingSince < LOADING_GIVE_UP_MS
   ) {
@@ -342,8 +423,20 @@ export const searchList = (searchStr: string): void => {
   const active = newState(searchStr, resolvePattern(searchStr));
   state = active;
 
+  // Idle synthetic rows are set aside rather than filtered: the index pass
+  // reuses the ones that still match and the rest are dropped.
+  const idle = new Map<string, HTMLElement>();
+  for (const item of getSyntheticRows()) {
+    const listId = getRowListId(item);
+    if (listId && isIdleSynthetic(item)) idle.set(listId, item);
+  }
+
   const startedAt = performance.now();
-  for (const item of getListItems()) applyToItem(active, item);
+  for (const item of getListItems()) {
+    if (!isIdleSynthetic(item)) applyToItem(active, item);
+  }
+  applyToIndex(active, idle);
+  for (const row of idle.values()) row.remove();
   logSearchSummary(active, performance.now() - startedAt);
 
   renderResultCount(active);
@@ -364,12 +457,23 @@ export const searchList = (searchStr: string): void => {
  * @category Search
  */
 export const refilterListItems = (): void => {
+  // Runs with or without a search, so a real row arriving never leaves its
+  // synthetic twin behind with the same ids.
+  const replaced = reconcileSyntheticRows();
   const active = state;
   if (!active) return;
 
   const items = getListItems();
   const fresh = items.filter((item) => appliedTerm.get(item) !== active.term);
-  if (fresh.length === 0) return;
+  if (fresh.length === 0 && replaced === 0) return;
+
+  if (active.usedIndex || replaced > 0) {
+    // The index already counted these lists, so adding them incrementally
+    // would count them twice.
+    log.debug(`${fresh.length} row(s) appeared during an index-backed search — re-running it`);
+    searchList(active.term);
+    return;
+  }
 
   log.debug(
     `${fresh.length} row(s) appeared since the search for "${active.term}" ran (${items.length} row(s) in the popover now)`,
@@ -437,6 +541,7 @@ export const getSearchDebugState = (): Record<string, unknown> => ({
   shownCount: state?.shownCount ?? 0,
   maxSearchResults: CONFIG.maxSearchResults,
   regexEnabled: isRegexEnabled(),
+  listIndex: getListIndexDebugState(),
 });
 
 /**
@@ -452,6 +557,20 @@ export const getSearchDebugState = (): Record<string, unknown> => ({
 export const resetSearchState = (): void => {
   if (state) log.debug(`popover opened — dropping the previous search ("${state.term}")`);
   state = null;
+  removeIdleSyntheticRows();
+};
+
+/**
+ * Run the current search again, e.g. once a refreshed list index can answer it.
+ *
+ * @returns Nothing.
+ * @example
+ * rerunActiveSearch(); // no-op when nothing is being searched for
+ * @source src/search.ts
+ * @category Search
+ */
+export const rerunActiveSearch = (): void => {
+  if (state && getSearchInput()) searchList(state.term);
 };
 
 // Debounced search trigger fired from the input's keyup event.

@@ -3,7 +3,13 @@ import { getPopover, getSearchInput, isListOpen } from './dom';
 import { resetFrequentCollapse } from './frequent-section';
 import { addListSearchInput, clearActiveListItem, searchFocus } from './inject';
 import { log } from './log';
-import { refilterListItems, resetSearchState, searchTrigger } from './search';
+import {
+  refilterListItems,
+  rerunActiveSearch,
+  resetSearchState,
+  searchTrigger,
+} from './search';
+import { refreshListIndexIfStale } from './wishlist-index';
 
 /**
  * Persistent observer.
@@ -27,6 +33,11 @@ const traceState = (state: string): void => {
 // closed -> open edge: work that belongs to "the popover just opened" runs once
 // per open rather than on every mutation.
 let wasOpen = false;
+
+/** Refresh the list index if it's due, then let a running search use it. */
+const refreshListIndexInBackground = async (): Promise<void> => {
+  if (await refreshListIndexIfStale()) rerunActiveSearch();
+};
 
 const tryInject = (): void => {
   // Only inject after the popover is visible. Injecting earlier (while
@@ -52,6 +63,7 @@ const tryInject = (): void => {
     // ...and with no search running, so the last term isn't re-applied to a
     // freshly rendered list.
     resetSearchState();
+    void refreshListIndexInBackground();
   }
 
   // Amazon keeps paging more lists into the open dropdown; those rows arrive

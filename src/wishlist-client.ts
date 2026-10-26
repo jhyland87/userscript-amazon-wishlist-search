@@ -2,10 +2,13 @@ import { ADD_TO_LIST_PATH, CONFIG, REMOVE_FROM_LIST_PATH } from './config';
 import type { AddParams, Outcome, RemoveParams } from './types';
 import {
   buildAddBody,
+  buildListPagePath,
+  buildListViewPath,
   buildRemoveBody,
   classifyAddResponse,
   classifyRemoveResponse,
   extractCsrfToken,
+  findListItemId,
   type ResponseInput,
 } from './wishlist-api';
 
@@ -35,36 +38,49 @@ export type PageTokenReader = () => string | null;
  */
 let cachedToken: string | null = null;
 
-/** Tail of the request chain; every request waits on the one before it. */
-let queue: Promise<unknown> = Promise.resolve();
+/** Runs a task once every task queued before it has settled. */
+type Enqueue = <T>(task: () => Promise<T>) => Promise<T>;
 
 /**
- * Run a task once every previously queued task has settled.
+ * Create a serialized request queue.
  *
  * Serialized rather than parallel because the token rotates: two requests in
  * flight with the same token race each other, and a burst of identical XHRs is
  * also the shape most likely to trip Amazon's throttling. The cost is invisible
  * because the row's badge flips to pending the instant the click lands.
  *
- * @param task - The work to run when the queue drains.
- * @returns The task's result.
+ * @returns A function that queues a task and resolves with its result.
  * @example
+ * const enqueue = createQueue();
  * await enqueue(() => sendRequest()); // waits for any in-flight request first
  * @source src/wishlist-client.ts
  */
-const enqueue = async <T>(task: () => Promise<T>): Promise<T> => {
-  const previous = queue;
-  const run = (async (): Promise<T> => {
-    try {
-      await previous;
-    } catch {
-      // A failed predecessor must not wedge everything queued behind it.
-    }
-    return task();
-  })();
-  queue = run;
-  return run;
+const createQueue = (): Enqueue => {
+  // Tail of the chain; every task waits on the one before it.
+  let tail: Promise<unknown> = Promise.resolve();
+  return async <T>(task: () => Promise<T>): Promise<T> => {
+    const previous = tail;
+    const run = (async (): Promise<T> => {
+      try {
+        await previous;
+      } catch {
+        // A failed predecessor must not wedge everything queued behind it.
+      }
+      return task();
+    })();
+    tail = run;
+    return run;
+  };
 };
+
+/** Adds and removes. */
+const enqueue = createQueue();
+
+/**
+ * Pages for the list index. Kept apart from `enqueue` so a background index
+ * refresh (~10 pages) can never hold up an add the user just clicked.
+ */
+const enqueueIndex = createQueue();
 
 /**
  * The token currently cached from the last response.
@@ -91,19 +107,15 @@ export const setCachedCsrfToken = (token: string | null): void => {
 };
 
 /**
- * Issue one request and normalize it into a `ResponseInput`.
+ * Issue one request with a timeout and normalize it into a `ResponseInput`.
  *
  * @param path - Origin-relative endpoint path.
- * @param body - URL-encoded request body.
- * @param token - Anti-CSRF token for the header.
- * @param accept - The `accept` header this endpoint expects.
+ * @param init - Method, headers and body.
  * @returns The normalized response, or a `network` outcome if it never landed.
  */
-const send = async (
+const fetchWithTimeout = async (
   path: string,
-  body: string,
-  token: string,
-  accept: string,
+  init: RequestInit,
 ): Promise<ResponseInput | Outcome> => {
   const controller = new AbortController();
   const timer = setTimeout(
@@ -112,14 +124,7 @@ const send = async (
   );
   try {
     const response = await fetch(path, {
-      method: 'POST',
-      headers: {
-        accept,
-        'anti-csrftoken-a2z': token,
-        'content-type': 'application/x-www-form-urlencoded',
-        'x-requested-with': 'XMLHttpRequest',
-      },
-      body,
+      ...init,
       credentials: 'include',
       mode: 'cors',
       signal: controller.signal,
@@ -139,6 +144,32 @@ const send = async (
     clearTimeout(timer);
   }
 };
+
+/**
+ * Issue one POST to an add/remove endpoint.
+ *
+ * @param path - Origin-relative endpoint path.
+ * @param body - URL-encoded request body.
+ * @param token - Anti-CSRF token for the header.
+ * @param accept - The `accept` header this endpoint expects.
+ * @returns The normalized response, or a `network` outcome if it never landed.
+ */
+const send = async (
+  path: string,
+  body: string,
+  token: string,
+  accept: string,
+): Promise<ResponseInput | Outcome> =>
+  fetchWithTimeout(path, {
+    method: 'POST',
+    headers: {
+      accept,
+      'anti-csrftoken-a2z': token,
+      'content-type': 'application/x-www-form-urlencoded',
+      'x-requested-with': 'XMLHttpRequest',
+    },
+    body,
+  });
 
 /**
  * Send a request, classify it, and retry once if the token was rejected.
@@ -230,3 +261,52 @@ export const removeFromList = async (
       readPageToken,
     ),
   );
+
+/**
+ * Fetch one page of the "Add to List" popover's lists, for the list index.
+ * Needs no anti-CSRF token, and runs on its own queue so it can't delay adds.
+ *
+ * @param token - The previous page's `paginationToken`, or `''` for the first page.
+ * @param renderedSoFar - How many lists the earlier pages held.
+ * @returns The raw response (see `readListPage`), or a `network` outcome.
+ * @example
+ * await fetchListPage('', 0); // {ok: true, status: 200, redirectedTo: null, body: '{"content":…}'}
+ * @source src/wishlist-client.ts
+ */
+export const fetchListPage = async (
+  token: string,
+  renderedSoFar: number,
+): Promise<ResponseInput | Outcome> =>
+  enqueueIndex(() =>
+    fetchWithTimeout(buildListPagePath(token, renderedSoFar), {
+      method: 'GET',
+      headers: {
+        accept: '*/*',
+        'x-requested-with': 'XMLHttpRequest',
+      },
+    }),
+  );
+
+/**
+ * Look up the line-item ID a product has on a list, which the remove endpoint
+ * needs and the add response doesn't return. Reads the list's own page, newest
+ * first, so a just-added item is in the first rows.
+ *
+ * @param listExternalId - The list the product was added to.
+ * @param itemExternalId - The product's `ASIN:<asin>|<marketplace>` ID.
+ * @returns The line-item ID, or `null` if the page failed or doesn't list it.
+ * @example
+ * await lookupListItemId('16N7NU7YLAZSR', 'ASIN:B0C6PN5NZ8|ATVPDKIKX0DER'); // 'I35JPXTAYKYXN0'
+ * @source src/wishlist-client.ts
+ */
+export const lookupListItemId = async (
+  listExternalId: string,
+  itemExternalId: string,
+): Promise<string | null> => {
+  const response = await fetchWithTimeout(buildListViewPath(listExternalId), {
+    method: 'GET',
+    headers: { accept: 'text/html' },
+  });
+  if ('kind' in response || !response.ok) return null;
+  return findListItemId(response.body, itemExternalId);
+};

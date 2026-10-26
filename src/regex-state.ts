@@ -7,12 +7,9 @@ import { isBoolean, onStoredChange, readStored, writeStored } from './storage';
  *
  * The effective value is, in priority order:
  *   1. a value the user toggled (GM storage)
- *   2. the `CONFIG.regexSearches` default (`true`/`'enable'` → on)
+ *   2. the `CONFIG.regexSearchDefault` default
  */
-const defaultEnabled =
-  CONFIG.regexSearches === true || CONFIG.regexSearches === 'enable';
-
-let enabled: boolean = defaultEnabled;
+let enabled: boolean = CONFIG.regexSearchDefault;
 
 /**
  * Load the stored flag into the cache and keep it in sync with other tabs.
@@ -25,9 +22,9 @@ let enabled: boolean = defaultEnabled;
  */
 export const loadRegexState = async (): Promise<void> => {
   enabled =
-    (await readStored(STORAGE_KEYS.regexEnabled, isBoolean)) ?? defaultEnabled;
+    (await readStored(STORAGE_KEYS.regexEnabled, isBoolean)) ?? CONFIG.regexSearchDefault;
   onStoredChange(STORAGE_KEYS.regexEnabled, isBoolean, (value) => {
-    enabled = value ?? defaultEnabled;
+    enabled = value ?? CONFIG.regexSearchDefault;
   });
 };
 

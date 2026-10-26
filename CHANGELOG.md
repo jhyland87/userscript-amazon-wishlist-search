@@ -12,6 +12,20 @@ someone using the script, one line per change, grouped under **Added** /
 
 ## [Unreleased]
 
+### Added
+
+- Search now covers every list straight away, including ones Amazon hasn't
+  loaded into the popover yet. The script keeps an index of your lists (fetched
+  in the background, refreshed daily), so results appear without the
+  "Searching…" wait, and you can add to a list before Amazon loads it.
+
+### Fixed
+
+- Undo (the ↩ on an added list) now works for items that weren't already on a
+  list. It used to read the item's list ID from a page field that's usually
+  empty, so the undo arrow often didn't appear, and when it did it could send
+  the wrong ID.
+
 ## [0.5.1] - 2026-09-23
 
 ### Changed

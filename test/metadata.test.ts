@@ -38,6 +38,7 @@ describe('userscript metadata', () => {
     // A new grant widens what the script can do, so it should be a deliberate
     // change to this list rather than a side effect of an import.
     expect([...(meta.get('grant') ?? [])].sort()).toEqual([
+      'GM.addElement',
       'GM.addStyle',
       'GM.addValueChangeListener',
       'GM.deleteValue',
@@ -46,16 +47,15 @@ describe('userscript metadata', () => {
       'GM.registerMenuCommand',
       'GM.setValue',
       'GM.unregisterMenuCommand',
-      'GM_addElement',
       'unsafeWindow',
     ]);
   });
 
-  it('targets Amazon product pages via TLD-agnostic @include rules', () => {
-    const includes = meta.get('include') ?? [];
-    expect(includes.length).toBe(5);
-    for (const rule of includes) {
-      expect(rule).toContain('amazon');
-    }
+  it('targets Amazon product pages via five TLD-agnostic @include rules', () => {
+    expect(meta.get('include')).toHaveLength(5);
+  });
+
+  it.for(meta.get('include') ?? [])('@include %s targets Amazon', (rule) => {
+    expect(rule).toContain('amazon');
   });
 });

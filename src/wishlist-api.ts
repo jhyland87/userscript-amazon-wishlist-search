@@ -1,3 +1,4 @@
+import { LIST_PAGE_PATH, LIST_VIEW_PATH } from './config';
 import type {
   AddParams,
   ListTarget,
@@ -32,6 +33,9 @@ const VALUE_ATTR_PATTERN = /\bvalue="([^"]*)"/i;
 const LIST_LINK_PATTERN =
   /<a\b[^>]*\bid="huc-list-link"[\s\S]*?<span\b[^>]*>([\s\S]*?)<\/span>/i;
 const ANCHOR_ID_PREFIX = 'atwl-link-to-list-';
+const LIST_ITEM_TAG_PATTERN = /<li\b[^>]*\bdata-itemid="[^"]*"[^>]*>/gi;
+const ITEM_ID_ATTR_PATTERN = /\bdata-itemid="([^"]*)"/i;
+const ITEM_PARAMS_ATTR_PATTERN = /\bdata-reposition-action-params="([^"]*)"/i;
 
 /** Raw response data, in the shape `wishlist-client` can always produce. */
 export interface ResponseInput {
@@ -43,6 +47,18 @@ export interface ResponseInput {
   readonly redirectedTo: string | null;
   /** The response body as text. */
   readonly body: string;
+}
+
+/**
+ * One page of the "Add to List" popover's lists, as `atlpaginate` returns it.
+ *
+ * @category Wishlist API
+ */
+export interface ListPage {
+  /** HTML for the page's rows: one `<li>` per list, plus a spinner row when more follow. */
+  readonly content: string;
+  /** Token for the next page; empty on the last page. */
+  readonly nextToken: string;
 }
 
 /**
@@ -375,4 +391,97 @@ export const describeOutcome = (outcome: Outcome): string => {
     default:
       return `Add failed${retry}`;
   }
+};
+
+/**
+ * Build the URL for one page of the popover's lists. The first page takes no
+ * parameters; later pages send what Amazon's own popover sends.
+ *
+ * @param token - The previous page's `paginationToken`, or `''` for the first page.
+ * @param renderedSoFar - How many lists the earlier pages held.
+ * @returns An origin-relative URL.
+ * @example
+ * buildListPagePath('', 0); // '/hz/wishlist/addtolist/atlpaginate'
+ * buildListPagePath('ESHV2_abc', 25);
+ * // '/hz/wishlist/addtolist/atlpaginate?paginationToken=ESHV2_abc&listsRenderedSoFar=25&isMobile=false'
+ * @source src/wishlist-api.ts
+ */
+export const buildListPagePath = (token: string, renderedSoFar: number): string => {
+  if (token === '') return LIST_PAGE_PATH;
+  const query = new URLSearchParams({
+    paginationToken: token,
+    listsRenderedSoFar: String(renderedSoFar),
+    isMobile: 'false',
+  });
+  return `${LIST_PAGE_PATH}?${query.toString()}`;
+};
+
+/**
+ * Read an `atlpaginate` response into its rows' HTML and the next page's token.
+ *
+ * @param input - The raw response.
+ * @returns The page, or `null` when the request failed, Amazon flagged an
+ *   error, or the body isn't the expected JSON.
+ * @example
+ * readListPage({ok: true, status: 200, redirectedTo: null,
+ *   body: '{"content":"<li>…</li>","paginationToken":"","hasError":false}'});
+ * // {content: '<li>…</li>', nextToken: ''}
+ * @source src/wishlist-api.ts
+ */
+export const readListPage = (input: ResponseInput): ListPage | null => {
+  if (classifyTransport(input)) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(input.body);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const content: unknown = Reflect.get(parsed, 'content');
+  const nextToken: unknown = Reflect.get(parsed, 'paginationToken');
+  if (Reflect.get(parsed, 'hasError') !== false) return null;
+  if (typeof content !== 'string') return null;
+  // The last page sends an empty string; treat a missing token the same way.
+  return { content, nextToken: typeof nextToken === 'string' ? nextToken : '' };
+};
+
+/**
+ * Build the URL for a list's own page, newest items first, which is where a
+ * just-added item's line-item ID can be read.
+ *
+ * @param listExternalId - The list's external ID.
+ * @returns An origin-relative URL.
+ * @example
+ * buildListViewPath('16N7NU7YLAZSR'); // '/hz/wishlist/ls/16N7NU7YLAZSR?sort=date-added'
+ * @source src/wishlist-api.ts
+ */
+export const buildListViewPath = (listExternalId: string): string =>
+  `${LIST_VIEW_PATH}${encodeURIComponent(listExternalId)}?sort=date-added`;
+
+/**
+ * Find a product's line-item ID on a list page.
+ *
+ * Each item row carries `data-itemId` and, in `data-reposition-action-params`,
+ * the item's `itemExternalId` (`ASIN:<asin>|<marketplace>`). The exact ID is
+ * preferred; a row for the same ASIN under another marketplace is the fallback.
+ *
+ * @param html - The list page's HTML.
+ * @param itemExternalId - The product's `ASIN:<asin>|<marketplace>` ID.
+ * @returns The line-item ID, or `null` if the product isn't on the page.
+ * @example
+ * findListItemId(listPageHtml, 'ASIN:B0C6PN5NZ8|ATVPDKIKX0DER'); // 'I35JPXTAYKYXN0'
+ * @source src/wishlist-api.ts
+ */
+export const findListItemId = (html: string, itemExternalId: string): string | null => {
+  const asinPrefix = `${itemExternalId.split('|')[0] ?? itemExternalId}|`;
+  let sameAsin: string | null = null;
+  for (const [tag] of html.matchAll(LIST_ITEM_TAG_PATTERN)) {
+    const itemId = ITEM_ID_ATTR_PATTERN.exec(tag)?.[1];
+    const params = ITEM_PARAMS_ATTR_PATTERN.exec(tag)?.[1];
+    if (!itemId || !params) continue;
+    const rowExternalId = parseStateField(decodeEntities(params), 'itemExternalId');
+    if (rowExternalId === itemExternalId) return itemId;
+    if (!sameAsin && rowExternalId?.startsWith(asinPrefix)) sameAsin = itemId;
+  }
+  return sameAsin;
 };

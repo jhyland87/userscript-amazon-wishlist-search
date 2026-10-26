@@ -1,11 +1,3 @@
-/**
- * How regex searching is interpreted from the user's input.
- *   - 'delimiters': treat `/pattern/flags` as a regex, plain text otherwise
- *   - 'enable' | true: always treat input as a regex source
- *   - 'disable' | false: never treat input as a regex
- */
-export type RegexSearchMode = 'delimiters' | 'enable' | 'disable' | boolean;
-
 /** User-tunable behaviour for the wishlist search feature. */
 export interface WishlistSearchConfig {
   /** Debounce delay before running a search after keyup. */
@@ -17,11 +9,10 @@ export interface WishlistSearchConfig {
   /** Minimum chars before searching. */
   readonly minSearchInput: number;
   /**
-   * Default for regex search mode. Overridden at runtime by the toggle inside
-   * the search input (`true`/`'enable'` → on, otherwise off); the choice is
-   * saved to GM storage. See `regex-state.ts`.
+   * Whether regex mode starts on. Overridden at runtime by the toggle inside
+   * the search input, whose choice is saved to GM storage. See `regex-state.ts`.
    */
-  readonly regexSearches: RegexSearchMode;
+  readonly regexSearchDefault: boolean;
   /** Show a "Previously selected" group at the top of the list. */
   readonly enableFrequentLists: boolean;
   /** Number of frequent lists to show in that group. */
@@ -40,6 +31,8 @@ export interface WishlistSearchConfig {
   readonly enableMultiAdd: boolean;
   /** Abort an add/remove request after this many milliseconds. */
   readonly wishlistRequestTimeoutMs: number;
+  /** How long the cached list index counts as complete (see `wishlist-index.ts`). */
+  readonly listIndexTtlMs: number;
   /** `vendorId` to send when the page's `wishlistDPState` can't be read. */
   readonly defaultVendorId: string;
   /**
@@ -111,6 +104,36 @@ export type Outcome =
   | { readonly kind: 'http'; readonly status: number }
   | { readonly kind: 'unrecognized' }
   | { readonly kind: 'network'; readonly message: string };
+
+/**
+ * One list from the cached index of every list the account has.
+ *
+ * @category Wishlist API
+ */
+export interface IndexedList {
+  /** Amazon's external ID for the list, e.g. `AP4XJQR1ZOMM`. */
+  readonly listExternalId: string;
+  /** Amazon's list-type discriminator, e.g. `wishlist` or `alexa`. */
+  readonly listType: string;
+  /** The list name, whitespace-normalized (see `name-match.ts`). */
+  readonly name: string;
+  /** The row's privacy label ("Private", "Public", "Shared"), if it has one. */
+  readonly privacy: string | null;
+}
+
+/**
+ * The list index cached for one Amazon host.
+ *
+ * @category Wishlist API
+ */
+export interface ListIndexEntry {
+  /** When the index was fetched (ms since the epoch). */
+  readonly fetchedAt: number;
+  /** The account the lists belong to, read from the rows' payload. */
+  readonly customerId: string | null;
+  /** Every list, in the order Amazon's popover shows them. */
+  readonly lists: readonly IndexedList[];
+}
 
 /** Visual state of a row's status badge. */
 export type RowStatus = 'pending' | 'added' | 'failed';
